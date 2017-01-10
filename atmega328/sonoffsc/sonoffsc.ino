@@ -38,7 +38,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define SHARP_SLEEP_TIME		9680
 
 #define DHT_PIN                 6
-#define DHT_TYPE                DHT22
+#ifndef DHT_TYPE
+#define DHT_TYPE                DHT11
+#endif
 
 #define ADC_COUNTS              1024
 #define MICROPHONE_PIN          A2
@@ -58,7 +60,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define DEFAULT_EVERY           0
 #define DEFAULT_PUSH            0
-#define DEFAULT_CLAP            1
+#define DEFAULT_CLAP            0
 #define DEFAULT_THRESHOLD       0
 
 // -----------------------------------------------------------------------------
