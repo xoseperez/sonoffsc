@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+    <head>
+
+        <title>Sonoff SC 0.0.0</title>
+        <meta charset="utf-8" />
+        <link rel="shortcut icon" type="image/x-icon" href="favicon.ico" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <!-- build:css style.css -->
+        <link rel="stylesheet" href="pure-min.css" />
+        <link rel="stylesheet" href="side-menu.css" />
+        <link rel="stylesheet" href="grids-responsive-min.css" />
+        <link rel="stylesheet" href="checkboxes.css" />
+        <link rel="stylesheet" href="custom.css" />
+        <!-- endbuild -->
+
+    </head>
+
+    <body>
+
+        <div id="layout">
+
+            <a href="#menu" id="menuLink" class="menu-link">
+                <span></span>
+            </a>
+
+            <div id="menu">
+                <div class="pure-menu">
+
+                    <span class="pure-menu-heading">Sonoff SC 0.0.0</span>
+
+                    <ul class="pure-menu-list">
+
+                        <li class="pure-menu-item">
+                            <a href="#" class="pure-menu-link" data="panel-status">STATUS</a>
+                        </li>
+
+                        <li class="pure-menu-item">
+                            <a href="#" class="pure-menu-link" data="panel-general">GENERAL</a>
+                        </li>
+
+                        <li class="pure-menu-item">
+                            <a href="#" class="pure-menu-link" data="panel-wifi">WIFI</a>
+                        </li>
+
+                        <li class="pure-menu-item">
+                            <a href="#" class="pure-menu-link" data="panel-mqtt">MQTT</a>
+                        </li>
+
+                        <li class="pure-menu-item module module-dcz">
+                            <a href="#" class="pure-menu-link" data="panel-domoticz">DOMOTICZ</a>
+                        </li>
+
+                    </ul>
+
+                    <div class="main-buttons">
+                        <button class="pure-button button-update">Update</button>
+                        <button class="pure-button button-reconnect">Reconnect</button>
+                        <button class="pure-button button-reset">Reset</button>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="content">
+
+                <div class="panel" id="panel-status" style="display: block;">
+
+                    <div class="header">
+                        <h1>STATUS</h1>
+                        <h2>Current configuration</h2>
+                    </div>
+
+                    <div class="page">
+
+                        <form class="pure-form pure-form-aligned">
+                            <fieldset>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="manufacturer">Manufacturer</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="manufacturer" readonly />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="device">Device</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="device" readonly />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="chipid">Chip ID</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="chipid" readonly />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="mac">MAC</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="mac" readonly />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="network">Network</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="network" readonly />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="deviceip">IP</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="deviceip" readonly />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="mqtt">MQTT Status</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="mqttStatus" readonly />
+                                </div>
+
+                                <hr />
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="dsTmp">Temperature (ºC)</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="sensorTemp" readonly />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="sensorHum">Humidity (%)</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="sensorHum" readonly />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="sensorDust">Dust (mg/m3)</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="sensorDust" readonly />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="sensorLight">Light (%)</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="sensorLight" readonly />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="sensorNoise">Noise (%)</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="sensorNoise" readonly />
+                                </div>
+
+
+                            </fieldset>
+
+                        </form>
+                    </div>
+                </div>
+
+                <form id="formSave" class="pure-form" action="/" method="post">
+
+                    <div class="panel" id="panel-general">
+
+                        <div class="header">
+                            <h1>GENERAL</h1>
+                            <h2>General configuration values</h2>
+                        </div>
+
+                        <div class="page">
+
+                            <fieldset>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="hostname">Hostname</label>
+                                    <input name="hostname" class="pure-u-1 pure-u-md-3-4" type="text" tabindex="1" />
+                                    <div class="pure-u-0 pure-u-md-1-4">&nbsp;</div>
+                                    <div class="pure-u-1 pure-u-md-3-4 hint">This name will identify this device in your network (http://&lt;hostname&gt;.local). For this setting to take effect you should restart the wifi interface clicking the "Reconnect" button.</div>
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="adminPass1">Admin password</label>
+                                    <input name="adminPass1" class="pure-u-1 pure-u-md-3-4" type="password" tabindex="11" />
+                                    <div class="pure-u-0 pure-u-md-1-4">&nbsp;</div>
+                                    <div class="pure-u-1 pure-u-md-3-4 hint">
+                                        The administrator password is used to access this web interface (user 'admin'), but also to connect to the device when in AP mode or to flash a new firmware over-the-air (OTA).<br />
+                                        It should have at least <strong>eight characters</strong> (letters, numbers or the underscore) and at least <strong>one number</strong>, <strong>one lowercase</strong> and <strong>one uppercase</strong> letter.</div>
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="adminPass2">Admin password (repeat)</label>
+                                    <input name="adminPass2" class="pure-u-1 pure-u-md-3-4" type="password" tabindex="12" />
+                                </div>
+
+                                <div class="pure-g module module-api">
+                                    <div class="pure-u-1 pure-u-sm-1-4"><label for="apiEnabled">Enable HTTP API</label></div>
+                                    <div class="pure-u-1 pure-u-sm-1-4"><input type="checkbox" name="apiEnabled" /></div>
+                                </div>
+
+                                <div class="pure-g module module-api">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="apiKey">HTTP API Key</label>
+                                    <input name="apiKey" class="pure-u-3-4 pure-u-md-1-2" type="text" tabindex="13" />
+                                    <div class=" pure-u-1-4 pure-u-md-1-4"><button class="pure-button button-apikey pure-u-23-24">Generate</button></div>
+                                    <div class="pure-u-0 pure-u-md-1-4">&nbsp;</div>
+                                    <div class="pure-u-1 pure-u-md-3-4 hint">This is the key you will have to pass with every HTTP request to the API, either to get or write values.</div>
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4">Update interval</label>
+                                    <div class="pure-u-1 pure-u-sm-1-8"><input class="pure-u-sm-23-24" name="sensorEvery" type="number" min="10" tabindex="2" /></div>
+                                    <div class="pure-u-1 pure-u-sm-5-8 hint center">Update sensor readings every this many seconds.</div>
+                                </div>
+
+                                <div class="pure-g">
+                                    <div class="pure-u-1 pure-u-sm-1-4"><label for="clapEnabled">Enable clap detector</label></div>
+                                    <div class="pure-u-1 pure-u-sm-1-4"><input type="checkbox" name="clapEnabled" /></div>
+                                </div>
+
+                            </fieldset>
+                        </div>
+                    </div>
+
+                    <div class="panel" id="panel-wifi">
+
+                        <div class="header">
+                            <h1>WIFI</h1>
+                            <h2>You can configure up to 5 different WiFi networks. The device will try to connect in order of signal strength.</h2>
+                        </div>
+
+                        <div class="page">
+
+                            <fieldset>
+
+                                <div id="networks">
+                                </div>
+
+                                <button type="button" class="pure-button button-add-network">Add network</button>
+
+                            </fieldset>
+                        </div>
+                    </div>
+
+                    <div class="panel" id="panel-mqtt">
+
+                        <div class="header">
+                            <h1>MQTT</h1>
+                            <h2>Configure an <strong>MQTT broker</strong> in your network and you will be able to change the switch status via an MQTT message. Leave the server field empty to disable MQTT.</h2>
+                        </div>
+
+                        <div class="page">
+
+                            <fieldset>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttServer">MQTT Server</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttServer" type="text" size="20" tabindex="21" placeholder="MQTT Server" />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttPort">MQTT Port</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttPort" type="text" size="6" tabindex="22" placeholder="1883" />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttUser">MQTT User</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttUser" type="text" size="20" tabindex="23" placeholder="Leave blank if no user/pass" />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttPassword">MQTT Password</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttPassword" type="text" size="20" tabindex="24" placeholder="Leave blank if no user/pass" />
+                                </div>
+
+                                <hr />
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttTopic">Root Topic</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttTopic" type="text" size="60" tabindex="25" />
+                                    <div class="pure-u-0 pure-u-md-1-4">&nbsp;</div>
+                                    <div class="pure-u-1 pure-u-md-3-4 hint">This is the root topic for this device. Topics are built prepending this value to the values for each sensor below.</div>
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttTopicTemp">Temperature Topic</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttTopicTemp" type="text" size="20" tabindex="26" />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttTopicHum">Humidity Topic</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttTopicHum" type="text" size="20" tabindex="27" />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttTopicDust">Dust Topic</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttTopicDust" type="text" size="20" tabindex="28" />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttTopicLight">Light Topic</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttTopicLight" type="text" size="20" tabindex="29" />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttTopicNoise">Noise Topic</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttTopicNoise" type="text" size="20" tabindex="30" />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttTopicClap">Clap Topic</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttTopicClap" type="text" size="20" tabindex="31" />
+                                </div>
+
+                            </fieldset>
+                        </div>
+
+                    </div>
+
+                    <div class="panel" id="panel-domoticz">
+
+                        <div class="header">
+                            <h1>DOMOTICZ</h1>
+                            <h2>
+                                Configure the connection to your Domoticz server.
+                            </h2>
+                        </div>
+
+                        <div class="page">
+
+                            <fieldset>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="dczTopicIn">Domoticz IN Topic</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="dczTopicIn" type="text" tabindex="41" placeholder="domoticz/in" />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="dczTopicOut">Domoticz OUT Topic</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="dczTopicOut" type="text" tabindex="42" placeholder="domoticz/out" />
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4">Temperature IDX</label>
+                                    <div class="pure-u-1 pure-u-sm-1-8"><input class="pure-u-sm-23-24" name="dczIdxTemp" type="number" min="0" tabindex="43" /></div>
+                                    <div class="pure-u-1 pure-u-sm-5-8 hint center">Set to 0 to disable notifications.</div>
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4">Humidity IDX</label>
+                                    <div class="pure-u-1 pure-u-sm-1-8"><input class="pure-u-sm-23-24" name="dczIdxHum" type="number" min="0" tabindex="44" /></div>
+                                    <div class="pure-u-1 pure-u-sm-5-8 hint center">Set to 0 to disable notifications.</div>
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4">Dust IDX</label>
+                                    <div class="pure-u-1 pure-u-sm-1-8"><input class="pure-u-sm-23-24" name="dczIdxDust" type="number" min="0" tabindex="45" /></div>
+                                    <div class="pure-u-1 pure-u-sm-5-8 hint center">Set to 0 to disable notifications.</div>
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4">Light IDX</label>
+                                    <div class="pure-u-1 pure-u-sm-1-8"><input class="pure-u-sm-23-24" name="dczIdxLight" type="number" min="0" tabindex="46" /></div>
+                                    <div class="pure-u-1 pure-u-sm-5-8 hint center">Set to 0 to disable notifications.</div>
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4">Noise IDX</label>
+                                    <div class="pure-u-1 pure-u-sm-1-8"><input class="pure-u-sm-23-24" name="dczIdxNoise" type="number" min="0" tabindex="47" /></div>
+                                    <div class="pure-u-1 pure-u-sm-5-8 hint center">Set to 0 to disable notifications.</div>
+                                </div>
+
+                            </fieldset>
+                        </div>
+
+                    </div>
+
+                    </div>
+                </form>
+
+            </div> <!-- content -->
+
+        </div> <!-- layout -->
+
+        <!-- Templates -->
+
+        <div id="networkTemplate" class="template">
+
+            <div class="pure-g">
+
+                <label class="pure-u-md-1-6 pure-u-1-4" for="ssid">Network SSID</label>
+                <div class="pure-u-md-3-4 pure-u-5-8"><input name="ssid" type="text" class="pure-u-23-24" value="" size="8" tabindex="0" placeholder="Network SSID" required /></div>
+                <div class="pure-u-md-1-12 pure-u-1-8"><button type="button" class="pure-button button-more-network pure-u-1">...</button></div>
+
+                <div class="more">
+
+                    <div class="break"></div>
+
+                    <label class="pure-u-md-1-6 pure-u-1-4" for="pass">Password</label>
+                    <input class="pure-u-md-5-6 pure-u-3-4" name="pass" type="password" value="" tabindex="0" />
+
+                    <div class="break"></div>
+
+                    <label class="pure-u-md-1-6 pure-u-1-4" for="ip">Static IP</label>
+                    <input class="pure-u-md-5-6 pure-u-3-4" name="ip" type="text" value="" size="15" tabindex="0" />
+                    <div class="pure-u-md-1-6 pure-u-1-4"></div>
+                    <div class="pure-u-md-5-6 pure-u-3-4 hint">Leave empty for DNS negotiation</div>
+
+                    <label class="pure-u-md-1-6 pure-u-1-4" for="gw">Gateway IP</label>
+                    <input class="pure-u-md-5-6 pure-u-3-4" name="gw" type="text" value="" size="15" tabindex="0" />
+                    <div class="pure-u-md-1-6 pure-u-1-4"></div>
+                    <div class="pure-u-md-5-6 pure-u-3-4 hint">Set when using a static IP</div>
+
+                    <label class="pure-u-md-1-6 pure-u-1-4" for="mask">Network Mask</label>
+                    <input class="pure-u-md-5-6 pure-u-3-4" name="mask" type="text" value="" size="15" tabindex="0" placeholder="255.255.255.0" />
+                    <div class="pure-u-md-1-6 pure-u-1-4"></div>
+                    <div class="pure-u-md-5-6 pure-u-3-4 hint">Usually 255.255.255.0 for /24 networks</div>
+
+                    <label class="pure-u-md-1-6 pure-u-1-4" for="dns">DNS IP</label>
+                    <input class="pure-u-md-5-6 pure-u-3-4" name="dns" type="text" value="" size="15" tabindex="0" placeholder="8.8.8.8" />
+                    <div class="pure-u-md-1-6 pure-u-1-4"></div>
+                    <div class="pure-u-md-5-6 pure-u-3-4 hint">Set the Domain Name Server IP to use when using a static IP</div>
+
+                    <div class="pure-u-md-1-6 pure-u-1-4"></div>
+                    <div class="pure-u-md-1-6 pure-u-1-4"><button type="button" class="pure-button button-del-network pure-u-5-6 pure-u-md-5-6">Del</button></div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </body>
+
+    <!-- build:js script.js -->
+    <script src="jquery-1.12.3.min.js"></script>
+    <script src="checkboxes.js"></script>
+    <script src="custom.js"></script>
+    <!-- endbuild -->
+
+</html>

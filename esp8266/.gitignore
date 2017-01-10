@@ -1,0 +1,6 @@
+.pio*
+.clang_complete
+.gcc-flags.json
+*.gch
+node_modules
+utils
