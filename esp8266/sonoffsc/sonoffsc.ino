@@ -25,7 +25,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // PROTOTYPES
 // -----------------------------------------------------------------------------
 
-#include <NtpClientLib.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncMqttClient.h>
 
@@ -95,7 +94,6 @@ void hardwareLoop() {
             last_heartbeat = millis();
             mqttSend(MQTT_HEARTBEAT_TOPIC, "1");
             DEBUG_MSG("[BEAT] Free heap: %d\n", ESP.getFreeHeap());
-            DEBUG_MSG("[NTP] Time: %s\n", (char *) NTP.getTimeDateString().c_str());
         }
     }
 
@@ -147,7 +145,6 @@ void setup() {
     otaSetup();
     mqttSetup();
     webSetup();
-    ntpSetup();
     commsSetup();
 
 }
@@ -160,6 +157,5 @@ void loop() {
     wifiLoop();
     otaLoop();
     mqttLoop();
-    ntpLoop();
 
 }
