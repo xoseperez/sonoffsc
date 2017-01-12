@@ -13,6 +13,7 @@ Copyright (C) 2016 by Xose Pérez <xose dot perez at gmail dot com>
 #include <Hash.h>
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
+#include <Ticker.h>
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -23,6 +24,7 @@ typedef struct {
 } ws_ticket_t;
 
 ws_ticket_t _ticket[WS_BUFFER_SIZE];
+Ticker deferred;
 
 // -----------------------------------------------------------------------------
 // WEBSOCKETS
@@ -68,7 +70,12 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
         DEBUG_MSG("[WEBSOCKET] Requested action: %s\n", action.c_str());
 
         if (action.equals("reset")) ESP.reset();
-        if (action.equals("reconnect")) wifiDisconnect();
+        if (action.equals("reconnect")) {
+
+            // Let the HTTP request return and disconnect after 100ms
+            deferred.once_ms(100, wifiDisconnect);
+            
+        }
 
     };
 
