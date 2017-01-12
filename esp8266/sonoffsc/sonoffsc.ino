@@ -146,6 +146,7 @@ void setup() {
     mqttSetup();
     webSetup();
     commsSetup();
+    fauxmoSetup();
 
 }
 
@@ -157,5 +158,6 @@ void loop() {
     wifiLoop();
     otaLoop();
     mqttLoop();
+    fauxmoLoop();
 
 }
