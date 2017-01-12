@@ -129,7 +129,7 @@ void mqttConnect() {
 
     if (!mqtt.connected()) {
 
-        buildTopics();
+        mqtt.disconnect();
 
         char * host = strdup(getSetting("mqttServer", MQTT_SERVER).c_str());
         if (strlen(host) == 0) return;
