@@ -2,7 +2,7 @@
 
 MQTT MODULE
 
-Copyright (C) 2016 by Xose Pérez <xose dot perez at gmail dot com>
+Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 
 */
 
@@ -129,7 +129,7 @@ void mqttConnect() {
 
     if (!mqtt.connected()) {
 
-        buildTopics();
+        mqtt.disconnect();
 
         char * host = strdup(getSetting("mqttServer", MQTT_SERVER).c_str());
         if (strlen(host) == 0) return;

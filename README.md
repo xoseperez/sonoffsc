@@ -2,7 +2,7 @@
 
 Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
 
-**Current Release Version is 0.1.0**, read the [changelog](CHANGELOG.md).
+**Current Release Version is 0.2.0**, read the [changelog](CHANGELOG.md).
 
 ## Features
 
@@ -20,6 +20,7 @@ Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
     * Websockets-based communication between the device and the browser
 * **Over-The-Air** (OTA) updates (only for the ESP8266)
 * [**Domoticz**](https://domoticz.com/) integration via MQTT
+* Enable/disable clap mode from **Alexa**
 
 ## Documentation
 
