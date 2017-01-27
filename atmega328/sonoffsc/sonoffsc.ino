@@ -18,8 +18,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+
+#include <Adafruit_NeoPixel.h>
 #include <DHT.h>
 #include <SerialLink.h>
+
+#include <Adafruit_NeoPixel.h>
+
+
+
 
 // -----------------------------------------------------------------------------
 //
@@ -41,6 +48,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef DHT_TYPE
 #define DHT_TYPE                DHT11
 #endif
+
+#define RGB_PIN					11
 
 #define ADC_COUNTS              1024
 #define MICROPHONE_PIN          A2
@@ -79,10 +88,20 @@ const PROGMEM char at_clap[] = "AT+CLAP";
 const PROGMEM char at_code[] = "AT+CODE";
 const PROGMEM char at_thld[] = "AT+THLD";
 const PROGMEM char at_led[] = "AT+LED";
+const PROGMEM char at_rgb[] = "AT+RGB";
 
 // -----------------------------------------------------------------------------
 // Globals
 // -----------------------------------------------------------------------------
+
+// Parameter 1 = number of pixels in strip
+// Parameter 2 = pin number (most are valid)
+// Parameter 3 = pixel type flags, add together as needed:
+//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
+//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
+//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(16, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
 SerialLink link(Serial);
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -108,6 +127,8 @@ float dust;
 int light;
 int noise;
 
+bool rgbExec = false;
+
 //unsigned int noise_count = 0;
 //unsigned long noise_sum = 0;
 //unsigned int noise_peak = 0;
@@ -124,6 +145,10 @@ unsigned int noise_buffer_sum = 0;
 
 void ledStatus(bool status) {
     digitalWrite(LED_PIN, status ? HIGH : LOW);
+}
+
+void rgbStatus(uint32_t color){
+	colorWipe(color, 50);
 }
 
 bool ledStatus() {
@@ -190,6 +215,11 @@ int getNoise() {
 
     return value;
 
+}
+
+void setRGB(int red = 0, int green = 0, int blue = 0) {
+
+	// set rgb mix here....
 }
 
 // -----------------------------------------------------------------------------
@@ -348,7 +378,7 @@ void noiseLoop() {
 // COMMUNICATION
 // -----------------------------------------------------------------------------
 
-bool linkGet(char * key) {
+bool linkGet(char * key) {  // 
 
     if (strcmp_P(key, at_push) == 0) {
         link.send(key, push ? 1 : 0, false);
@@ -445,7 +475,11 @@ bool linkSet(char * key, int value) {
             return true;
         }
     }
-
+	if (strcmp_P(key, at_rgb) == 0) {  // rgb value sent
+		// wont check the value here... Just now
+			rgbStatus(value);
+			return true;
+	}
     return false;
 
 }
@@ -468,6 +502,11 @@ void setup() {
     Serial.begin(SERIAL_BAUDRATE);
     link.send_P(at_hello, 1);
 
+	// Neopixel setup
+	strip.begin();
+	strip.setBrightness(30); //adjust brightness here
+	strip.show(); // Initialize all pixels to 'off'
+
     linkSetup();
 
     pinMode(LED_PIN, OUTPUT);
@@ -477,6 +516,7 @@ void setup() {
     pinMode(SHARP_LED_PIN, OUTPUT);
     pinMode(SHARP_READ_PIN, INPUT);
     pinMode(MICROPHONE_PIN, INPUT_PULLUP);
+	pinMode(RGB_PIN, OUTPUT);
 
     dht.begin();
 
@@ -488,6 +528,7 @@ void loop() {
 
     linkLoop();
 
+	// If AT+EVERY>0 then we are sending a signal every so many seconds
     if ((every > 0) && ((millis() - last > every) || (last == 0))) {
 
         last = millis();
@@ -516,6 +557,7 @@ void loop() {
         if (push) link.send_P(at_noise, noise, false);
 
     }
+
 
     noiseLoop();
 
