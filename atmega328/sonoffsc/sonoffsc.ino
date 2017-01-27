@@ -23,7 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <DHT.h>
 #include <SerialLink.h>
 
-#include <Adafruit_NeoPixel.h>
+
 
 
 
