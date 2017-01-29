@@ -149,7 +149,7 @@ void setup() {
     webSetup();
     commsSetup();
     fauxmoSetup();
-
+	commConfigure();
 }
 
 void loop() {

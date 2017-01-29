@@ -507,7 +507,7 @@ void setup() {
 	strip.begin();
 	strip.setBrightness(30); //adjust brightness here
 	strip.show(); // Initialize all pixels to 'off'
-	rainbowCycle(1);
+	//rainbowCycle(1);
     linkSetup();
 
     pinMode(LED_PIN, OUTPUT);
@@ -525,8 +525,8 @@ void setup() {
 	strip.begin();
 	strip.setBrightness(30); //adjust brightness here
 	strip.show(); // Initialize all pixels to 'off'
-	rainbowCycle(5);
-	colorWipe(0,50);
+	//rainbowCycle(5);
+	//colorWipe(0,50);
 }
 
 void loop() {
