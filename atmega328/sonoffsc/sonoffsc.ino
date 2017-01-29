@@ -46,7 +46,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define DHT_PIN                 6
 #ifndef DHT_TYPE
-#define DHT_TYPE                DHT11
+#define DHT_TYPE                DHT22
 #endif
 
 #define RGB_PIN					11
@@ -101,7 +101,7 @@ const PROGMEM char at_rgb[] = "AT+RGB";
 //   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(16, RGB_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(24, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
 SerialLink link(Serial);
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -127,7 +127,7 @@ float dust;
 int light;
 int noise;
 
-bool rgbExec = false;
+bool rgbExec = true;
 
 //unsigned int noise_count = 0;
 //unsigned long noise_sum = 0;
@@ -478,6 +478,7 @@ bool linkSet(char * key, int value) {
 	if (strcmp_P(key, at_rgb) == 0) {  // rgb value sent
 		// wont check the value here... Just now
 			rgbStatus(value);
+			Serial.println("rgb");
 			return true;
 	}
     return false;
@@ -506,7 +507,7 @@ void setup() {
 	strip.begin();
 	strip.setBrightness(30); //adjust brightness here
 	strip.show(); // Initialize all pixels to 'off'
-
+	rainbowCycle(1);
     linkSetup();
 
     pinMode(LED_PIN, OUTPUT);
@@ -520,6 +521,12 @@ void setup() {
 
     dht.begin();
 
+	// Neopixel setup and start animation
+	strip.begin();
+	strip.setBrightness(30); //adjust brightness here
+	strip.show(); // Initialize all pixels to 'off'
+	rainbowCycle(5);
+	colorWipe(0,50);
 }
 
 void loop() {
@@ -555,6 +562,14 @@ void loop() {
 
         noise = getNoise();
         if (push) link.send_P(at_noise, noise, false);
+
+
+		// animate to indicate reading has occurred
+		if (rgbExec == true) {
+			rainbowCycle(1);
+			colorWipe(0, 5);
+
+		}
 
     }
 

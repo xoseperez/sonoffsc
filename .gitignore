@@ -32,3 +32,11 @@ esp8266/sonoffsc/debug.h
 esp8266/sonoffsc/general.h
 *.vcxproj
 esp8266/sonoffsc/__vm/.sonoffsc.vsarduino.h
+esp8266/sonoffsc/Debug/board.buildinfo
+esp8266/sonoffsc/Debug/sonoffsc.bin
+esp8266/sonoffsc/Debug/sonoffsc.cpp.o
+esp8266/sonoffsc/Debug/sonoffsc.ino.bin
+esp8266/sonoffsc/Release/board.buildinfo
+esp8266/sonoffsc/Release/sonoffsc.bin
+esp8266/sonoffsc/Release/sonoffsc.cpp.o
+esp8266/sonoffsc/Release/sonoffsc.ino.bin
