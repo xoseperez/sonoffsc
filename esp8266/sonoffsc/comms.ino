@@ -19,6 +19,7 @@ const PROGMEM char at_light[] = "AT+LIGHT";
 const PROGMEM char at_clap[] = "AT+CLAP";
 const PROGMEM char at_code[] = "AT+CODE";
 const PROGMEM char at_thld[] = "AT+THLD";
+const PROGMEM char at_rgb[] = "AT+RGB";
 
 // -----------------------------------------------------------------------------
 // VALUES
@@ -29,12 +30,14 @@ int humidity;
 int light;
 float dust;
 int noise;
+uint32 rgb;
 
 float getTemperature() { return temperature; }
 float getHumidity() { return humidity; }
 float getLight() { return light; }
 float getDust() { return dust; }
 float getNoise() { return noise; }
+uint32 getRGB() { return rgb; }
 
 // -----------------------------------------------------------------------------
 // COMMUNICATIONS
@@ -125,4 +128,8 @@ void commsSetup() {
 
 void commsLoop() {
     link.handle();
+}
+
+void commSendRGB(uint32_t rgb) {
+	link.send_P(at_rgb, rgb);
 }

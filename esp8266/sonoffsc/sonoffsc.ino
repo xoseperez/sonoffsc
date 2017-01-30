@@ -136,6 +136,8 @@ void setup() {
     hardwareSetup();
     welcome();
 
+	mqttRegister(mqttCallback);
+
     settingsSetup();
     if (getSetting("hostname").length() == 0) {
         setSetting("hostname", getIdentifier());

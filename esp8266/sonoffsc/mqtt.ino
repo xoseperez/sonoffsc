@@ -176,3 +176,28 @@ void mqttLoop() {
     }
 
 }
+
+void mqttCallback(unsigned int type, const char * topic, const char * payload) {
+
+	// When connected, subscribe to the topic
+	if (type == MQTT_CONNECT_EVENT) {
+		mqttSubscribeRaw(MQTT_RGB_TOPIC);
+	}
+
+	// 
+	if (type == MQTT_MESSAGE_EVENT) {
+		if (strcmp(topic, MQTT_RGB_TOPIC) == 0) {
+			Serial.printf("Received %s\n", payload);  // comment this out if it works
+
+			if (strchr(payload, ',') != NULL) {
+				// there are commas in this payload, convert to uint32_t
+				rgb = parseColor((char*)payload);
+			}
+			else {
+				// this must be a raw value, send that straight to AT+RGB
+				rgb = atoi(payload);
+			}
+			commSendRGB(rgb);  // Send it to the Atmega328
+		}
+	}
+}
