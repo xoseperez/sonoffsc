@@ -23,11 +23,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <DHT.h>
 #include <SerialLink.h>
 
-
-
-
-
-
 // -----------------------------------------------------------------------------
 //
 // -----------------------------------------------------------------------------
@@ -67,9 +62,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define MAX_SERIAL_BUFFER       20
 
-#define DEFAULT_EVERY           0
-#define DEFAULT_PUSH            0
-#define DEFAULT_CLAP            0
+#define DEFAULT_EVERY           60
+#define DEFAULT_PUSH            1
+#define DEFAULT_CLAP            1
 #define DEFAULT_THRESHOLD       0
 
 #define RGB_WIPE				1
@@ -97,6 +92,7 @@ const PROGMEM char at_g[] = "AT+G";
 const PROGMEM char at_b[] = "AT+B";
 const PROGMEM char at_effect[] = "AT+EFFECT";
 const PROGMEM char at_rgb_exec[] = "AT+RGBEXEC";
+
 // -----------------------------------------------------------------------------
 // Globals
 // -----------------------------------------------------------------------------
@@ -125,7 +121,7 @@ byte clapPointer = 0;
 
 bool push = DEFAULT_PUSH;
 bool clap = DEFAULT_CLAP;
-unsigned int every = DEFAULT_EVERY;
+unsigned int every = DEFAULT_EVERY * 1000;
 unsigned int threshold = DEFAULT_THRESHOLD;
 
 float temperature;
@@ -135,7 +131,7 @@ int light;
 int noise;
 
 // RGB Global Variables
-bool rgbExec = true;				//Should code execute
+bool rgbExec = true;				// Should code execute
 int colorR, colorG, colorB = 0;		// Component colors.  
 int rgbEffect = RGB_WIPE;			// default animation 
 
@@ -155,10 +151,6 @@ unsigned int noise_buffer_sum = 0;
 
 void ledStatus(bool status) {
     digitalWrite(LED_PIN, status ? HIGH : LOW);
-}
-
-void rgbStatus(uint32_t color){
-	colorWipe(color, 50);
 }
 
 bool ledStatus() {
@@ -337,7 +329,7 @@ void noiseLoop() {
     unsigned int max = 0;
 
     // Check MIC every NOISE_READING_DELAY
-    //if (millis() - last_reading < NOISE_READING_DELAY) return;
+    // if (millis() - last_reading < NOISE_READING_DELAY) return;
     last_reading = millis();
 
     while (millis() - last_reading < NOISE_READING_WINDOW) {
@@ -383,7 +375,8 @@ void noiseLoop() {
 // COMMUNICATION
 // -----------------------------------------------------------------------------
 
-bool linkGet(char * key) {  // 
+// How to respond to AT+...=? requests
+bool linkGet(char * key) {  
 
     if (strcmp_P(key, at_push) == 0) {
         link.send(key, push ? 1 : 0, false);
@@ -444,6 +437,7 @@ bool linkGet(char * key) {  //
 
 }
 
+// Functions for responding to AT+...=<int> commands that set values and functions
 bool linkSet(char * key, int value) {
 
     if (strcmp_P(key, at_push) == 0) {
@@ -510,15 +504,18 @@ bool linkSet(char * key, int value) {
     return false;
 }
 
+//Setup callbacks when AT commands are recieved
 void linkSetup() {
     link.onGet(linkGet);
     link.onSet(linkSet);
 }
 
+// Check for incoming AT+ commands
 void linkLoop() {
     link.handle();
 }
 
+// Check to see if WS2812 light ring has any instructions awaiting
 void rgbLoop(int rgbEffect = RGB_WIPE, bool restoreColor = true) {
 	if (rgbExec == true) {
 		switch(rgbEffect) {
@@ -554,40 +551,37 @@ void rgbLoop(int rgbEffect = RGB_WIPE, bool restoreColor = true) {
 	}
 }
 
-
 // -----------------------------------------------------------------------------
 // MAIN
 // -----------------------------------------------------------------------------
 
 void setup() {
 
+	// Setup Serial port
     Serial.begin(SERIAL_BAUDRATE);
     link.send_P(at_hello, 1);
 
-	// Neopixel setup
-	strip.begin();
-	strip.setBrightness(30); //adjust brightness here
-	strip.show(); // Initialize all pixels to 'off'
-	//rainbowCycle(1);
     linkSetup();
 
+	// Setup physical pins on the ATMega328 
     pinMode(LED_PIN, OUTPUT);
-    ledStatus(false);
-    pinMode(LDR_PIN, INPUT);
+	pinMode(LDR_PIN, INPUT);
     pinMode(DHT_PIN, INPUT);
     pinMode(SHARP_LED_PIN, OUTPUT);
     pinMode(SHARP_READ_PIN, INPUT);
     pinMode(MICROPHONE_PIN, INPUT_PULLUP);
 	pinMode(RGB_PIN, OUTPUT);
 
+	// Switch LED off (just to be sure)
+    ledStatus(false);
+
+	// Setup the DHT Thermometer/Humidity Sensor
     dht.begin();
 
 	// Neopixel setup and start animation
 	strip.begin();
 	strip.setBrightness(30); //adjust brightness here
 	strip.show(); // Initialize all pixels to 'off'
-	//rainbowCycle(5);
-	//colorWipe(0,50);
 }
 
 void loop() {
@@ -624,12 +618,10 @@ void loop() {
         noise = getNoise();
         if (push) link.send_P(at_noise, noise, false);
 
-
 		// animate to indicate reading has occurred
-		rgbExec = true;
-		rgbLoop(RGB_RAINBOW);
+		rgbExec = true;			// Set the Exec flag to on
+		rgbLoop(RGB_RAINBOW);	// Set the Animation type
     }
-
 
     noiseLoop();
 

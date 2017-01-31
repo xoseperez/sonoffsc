@@ -1,4 +1,3 @@
-
 // Fill the dots one after the other with a color
 void colorWipe(uint32_t c, uint8_t wait) {
 	for (uint16_t i = 0; i<strip.numPixels(); i++) {
@@ -48,3 +47,5 @@ uint32_t Wheel(byte WheelPos) {
 		return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
 	}
 }
+
+// Move rgb loop to here?
