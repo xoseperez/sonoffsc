@@ -21,7 +21,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <Arduino.h>
 #include "all.h"
 // #include <Adafruit_NeoPixel.h>
-
+int rValue = 0;
+int gValue = 0;
+int bValue = 0;
 
 // -----------------------------------------------------------------------------
 // PROTOTYPES
@@ -136,8 +138,6 @@ void setup() {
     hardwareSetup();
     welcome();
 
-	mqttRegister(mqttCallback);
-
     settingsSetup();
     if (getSetting("hostname").length() == 0) {
         setSetting("hostname", getIdentifier());
@@ -152,6 +152,9 @@ void setup() {
     commsSetup();
     fauxmoSetup();
 	commConfigure();
+
+
+	mqttRegister(mqttCallback);
 }
 
 void loop() {
