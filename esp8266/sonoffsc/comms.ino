@@ -19,7 +19,11 @@ const PROGMEM char at_light[] = "AT+LIGHT";
 const PROGMEM char at_clap[] = "AT+CLAP";
 const PROGMEM char at_code[] = "AT+CODE";
 const PROGMEM char at_thld[] = "AT+THLD";
-const PROGMEM char at_rgb[] = "AT+RGB";
+const PROGMEM char at_r[] = "AT+R";
+const PROGMEM char at_g[] = "AT+G";
+const PROGMEM char at_b[] = "AT+B";
+const PROGMEM char at_effect[] = "AT+EFFECT";
+const PROGMEM char at_rgb_exec[] = "AT+RGBEXEC";
 
 // -----------------------------------------------------------------------------
 // VALUES
@@ -130,6 +134,10 @@ void commsLoop() {
     link.handle();
 }
 
-void commSendRGB(uint32_t rgb) {
-	link.send_P(at_rgb, rgb);
+void commSendRGB(int r, int g, int b) {
+
+	link.send_P(at_r, r);
+	link.send_P(at_g, g);
+	link.send_P(at_b, b);
+	link.send_P(at_rgb_exec, 1);
 }
