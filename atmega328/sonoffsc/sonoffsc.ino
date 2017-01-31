@@ -72,6 +72,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define DEFAULT_CLAP            0
 #define DEFAULT_THRESHOLD       0
 
+#define RGB_WIPE				1
+#define RGB_RAINBOW				2
+#define RGB_RAINBOW_CYCLE		3
+
 // -----------------------------------------------------------------------------
 // Keywords
 // -----------------------------------------------------------------------------
@@ -88,8 +92,11 @@ const PROGMEM char at_clap[] = "AT+CLAP";
 const PROGMEM char at_code[] = "AT+CODE";
 const PROGMEM char at_thld[] = "AT+THLD";
 const PROGMEM char at_led[] = "AT+LED";
-const PROGMEM char at_rgb[] = "AT+RGB";
-
+const PROGMEM char at_r[] = "AT+R";
+const PROGMEM char at_g[] = "AT+G";
+const PROGMEM char at_b[] = "AT+B";
+const PROGMEM char at_effect[] = "AT+EFFECT";
+const PROGMEM char at_rgb_exec[] = "AT+RGBEXEC";
 // -----------------------------------------------------------------------------
 // Globals
 // -----------------------------------------------------------------------------
@@ -127,7 +134,10 @@ float dust;
 int light;
 int noise;
 
-bool rgbExec = true;
+// RGB Global Variables
+bool rgbExec = true;				//Should code execute
+int colorR, colorG, colorB = 0;		// Component colors.  
+int rgbEffect = RGB_WIPE;			// default animation 
 
 //unsigned int noise_count = 0;
 //unsigned long noise_sum = 0;
@@ -457,7 +467,10 @@ bool linkSet(char * key, int value) {
 
     if (strcmp_P(key, at_every) == 0) {
         if (5 <= value && value <= 300) {
+
             every = 1000 * value;
+
+			Serial.println(every, DEC);
             return true;
         }
     }
@@ -475,14 +488,31 @@ bool linkSet(char * key, int value) {
             return true;
         }
     }
-	if (strcmp_P(key, at_rgb) == 0) {  // rgb value sent
-		// wont check the value here... Just now
-			rgbStatus(value);
-			Serial.println("rgb");
+	if (strcmp_P(key, at_r) == 0) {  // rgb value sent
+		if (0 <= value && value <= 255) {
+			colorR = value;
 			return true;
+		}
+	}
+	if (strcmp_P(key, at_g) == 0) {  // rgb value sent
+		if (0 <= value && value <= 255) {
+			colorG = value;
+			return true;
+		}
+	}
+	if (strcmp_P(key, at_b) == 0) {  // rgb value sent
+		if (0 <= value && value <= 255) {
+			colorB = value;
+			return true;
+		}
+	}
+	if (strcmp_P(key, at_rgb_exec) == 0) {
+		if (0 <= value && value <= 1) {
+			rgbExec = value == 1;
+			return true;
+		}
 	}
     return false;
-
 }
 
 void linkSetup() {
@@ -493,6 +523,42 @@ void linkSetup() {
 void linkLoop() {
     link.handle();
 }
+
+void rgbLoop(int rgbEffect = RGB_WIPE, bool restoreColor = true) {
+	if (rgbExec == true) {
+		switch(rgbEffect) {
+			case RGB_WIPE:
+				// Do wipe animation here
+				colorWipe(strip.Color(colorR, colorG, colorB), 5);
+				rgbExec = false;	// Only do this once...
+				break;
+
+			case RGB_RAINBOW:
+				// Do Rainbow animation here
+				rainbow(1);
+				if (restoreColor) {
+					rgbEffect = RGB_WIPE;
+					rgbExec = true;
+				}
+				else {
+					colorWipe(0, 0); // Switch off all LEDS No delay
+				}
+				break;
+
+			case RGB_RAINBOW_CYCLE:
+				rainbowCycle(1);
+				if (restoreColor) {
+					rgbEffect = RGB_WIPE;
+					rgbExec = true;
+				}
+				else {
+					colorWipe(0, 0); // Switch off all LEDS No delay
+				}
+				break;
+		}
+	}
+}
+
 
 // -----------------------------------------------------------------------------
 // MAIN
@@ -565,15 +631,13 @@ void loop() {
 
 
 		// animate to indicate reading has occurred
-		if (rgbExec == true) {
-			rainbowCycle(1);
-			colorWipe(0, 5);
-
-		}
-
+		rgbExec = true;
+		rgbLoop(RGB_RAINBOW);
     }
 
 
     noiseLoop();
+
+	rgbLoop();
 
 }
