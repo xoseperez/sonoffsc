@@ -187,17 +187,9 @@ void mqttCallback(unsigned int type, const char * topic, const char * payload) {
 	// 
 	if (type == MQTT_MESSAGE_EVENT) {
 		if (strcmp(topic, MQTT_RGB_TOPIC) == 0) {
-			Serial.printf("Received %s\n", payload);  // comment this out if it works
-
-			if (strchr(payload, ',') != NULL) {
-				// there are commas in this payload, convert to uint32_t
-				rgb = parseColor((char*)payload);
-			}
-			else {
-				// this must be a raw value, send that straight to AT+RGB
-				rgb = atoi(payload);
-			}
-			commSendRGB(rgb);  // Send it to the Atmega328
+			Serial.println("Received");  // comment this out if it works
+			parseColor((char*)payload);
+			commSendRGB(rValue, gValue, bValue);  // Send it to the Atmega328
 		}
 	}
 }
