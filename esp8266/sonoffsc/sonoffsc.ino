@@ -20,10 +20,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <Arduino.h>
 #include "all.h"
-// #include <Adafruit_NeoPixel.h>
-int rValue = 0;
-int gValue = 0;
-int bValue = 0;
 
 // -----------------------------------------------------------------------------
 // PROTOTYPES

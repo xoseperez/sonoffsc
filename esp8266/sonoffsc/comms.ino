@@ -134,10 +134,11 @@ void commsLoop() {
     link.handle();
 }
 
+// Function to send AT commands that set rgb colors.
 void commSendRGB(int r, int g, int b) {
 
-	link.send_P(at_r, r);
-	link.send_P(at_g, g);
-	link.send_P(at_b, b);
-	link.send_P(at_rgb_exec, 1);
+	link.send_P(at_r, r);			// Send red value
+	link.send_P(at_g, g);			// Send blue value
+	link.send_P(at_b, b);			// Send green value
+	link.send_P(at_rgb_exec, 1);	// Send execute instruction
 }

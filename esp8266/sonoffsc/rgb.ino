@@ -1,26 +1,10 @@
 
-// Code borrowed from the Adafruit Neopixel Library.  Idea is to send colors as single value that can be decoded at other end
+// This function 
+void sendColor(char * rgbValues) {
 
-
-// Convert separate R,G,B into packed 32-bit RGB color.
-// Packed format is always RGB, regardless of LED strand color order.
-uint32_t getRgbColor(uint8_t r, uint8_t g, uint8_t b) {
-	return ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
-}
-
-// Convert separate R,G,B,W into packed 32-bit WRGB color.
-// Packed format is always WRGB, regardless of LED strand color order.
-uint32_t getRgbColor(uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
-	return ((uint32_t)w << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
-}
-
-uint16_t rgbBlue() {
-	getRgbColor(0, 0, 255);
-}
-
-
-// Function to return uint32t values from component values
-void parseColor(char * rgbValues) {
+	int rValue = 0;
+	int gValue = 0;
+	int bValue = 0;
 
 	// split the data into its parts
 
@@ -34,4 +18,6 @@ void parseColor(char * rgbValues) {
 
 	strtokIndx = strtok(NULL, ",");
 	bValue = atoi(strtokIndx);				// convert this part to an integer
+	
+	commSendRGB(rValue, gValue, bValue);  // Send it to the Atmega328
 }

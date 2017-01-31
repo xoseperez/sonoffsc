@@ -177,19 +177,19 @@ void mqttLoop() {
 
 }
 
+// Callback to subscrive 
 void mqttCallback(unsigned int type, const char * topic, const char * payload) {
 
 	// When connected, subscribe to the topic
 	if (type == MQTT_CONNECT_EVENT) {
 		mqttSubscribeRaw(MQTT_RGB_TOPIC);
+		// Feel I should be using mqttSubscribe here... 
 	}
 
 	// 
 	if (type == MQTT_MESSAGE_EVENT) {
 		if (strcmp(topic, MQTT_RGB_TOPIC) == 0) {
-			Serial.println("Received");  // comment this out if it works
-			parseColor((char*)payload);
-			commSendRGB(rValue, gValue, bValue);  // Send it to the Atmega328
+			sendColor((char*)payload);
 		}
 	}
 }
