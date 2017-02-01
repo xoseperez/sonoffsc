@@ -29,7 +29,6 @@ atmega328/sonoffsc/__vm/.sonoffsc.vsarduino.h
 atmega328/sonoffsc/Debug/sonoffsc.cpp.o
 esp8266/sonoffsc/all.h
 esp8266/sonoffsc/debug.h
-esp8266/sonoffsc/general.h
 *.vcxproj
 esp8266/sonoffsc/__vm/.sonoffsc.vsarduino.h
 esp8266/sonoffsc/Debug/board.buildinfo
