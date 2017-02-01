@@ -460,8 +460,6 @@ bool linkSet(char * key, int value) {
         if (5 <= value && value <= 300) {
 
             every = 1000 * value;
-
-			Serial.println(every, DEC);
             return true;
         }
     }
