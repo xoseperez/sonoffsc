@@ -10,6 +10,7 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 #include <AsyncMqttClient.h>
 #include <vector>
 
+
 AsyncMqttClient mqtt;
 
 String mqttTopic;
@@ -177,18 +178,19 @@ void mqttLoop() {
 
 }
 
-// Callback to subscrive 
+// Callback to subscribe 
 void mqttCallback(unsigned int type, const char * topic, const char * payload) {
 
 	// When connected, subscribe to the topic
 	if (type == MQTT_CONNECT_EVENT) {
-		mqttSubscribeRaw(MQTT_RGB_TOPIC);
+		mqttSubscribe(MQTT_RGB_TOPIC);
 		// Feel I should be using mqttSubscribe here... 
 	}
 
 	// 
 	if (type == MQTT_MESSAGE_EVENT) {
-		if (strcmp(topic, MQTT_RGB_TOPIC) == 0) {
+		String mqttTopic = (MQTT_TOPIC + (String)MQTT_RGB_TOPIC);
+		if (strcmp(topic, mqttTopic.c_str()) == 0) {
 			sendColor((char*)payload);
 		}
 	}
