@@ -65,8 +65,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define MAX_SERIAL_BUFFER       20
 
 #define DEFAULT_EVERY           60
-#define DEFAULT_PUSH            1
-#define DEFAULT_CLAP            1
+#define DEFAULT_PUSH            0
+#define DEFAULT_CLAP            0
 #define DEFAULT_THRESHOLD       0
 
 #define RGB_WIPE				1
