@@ -34,16 +34,16 @@ SerialLink::SerialLink(Stream& serial, bool doACK, char splitChar, char queryCha
 
 void SerialLink::handle() {
 
-    int count = _serial->available();
-    if (count>1) {
+    int count = _serial->available();	// check to see if there are any characters in the serial buffer
+    if (count>1) {						// if there is more than 1 then add it to a buffer
 
         byte buffer[MAX_BUFFER_SIZE];
-        int length = _serial->readBytesUntil(_terminateChar, buffer, MAX_BUFFER_SIZE-1);
+        int length = _serial->readBytesUntil(_terminateChar, buffer, MAX_BUFFER_SIZE-1);  
 
         if (length>1) {
 
             // Convert it to C string
-            buffer[length] = 0;
+            buffer[length] = 0;		
 
             // Find the split char
             int split = 0;
@@ -61,7 +61,7 @@ void SerialLink::handle() {
                 key[split] = 0;
 
                 // query value
-                if (buffer[split+1] == _queryChar) {
+                if (buffer[split+1] == _queryChar) {  // if the esp is asking for a query do...
 
                     if (_onGet) {
                         bool response = _onGet(key);
@@ -71,10 +71,10 @@ void SerialLink::handle() {
                     }
 
                 // set value
-                } else {
+                } else {  // must be the esp is setting a value then
 
                     int value = 0;
-                    while (char c = buffer[++split]) {
+                    while (char c = buffer[++split]) {  // gather the value
                         value = 10 * value + c - '0';
                     }
                     if (_onSet) {

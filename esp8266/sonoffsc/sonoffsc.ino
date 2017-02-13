@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <Arduino.h>
-#include "config/all.h"
+#include "config\all.h"
 
 // -----------------------------------------------------------------------------
 // PROTOTYPES
@@ -147,7 +147,10 @@ void setup() {
     webSetup();
     commsSetup();
     fauxmoSetup();
+	commConfigure();
 
+
+	mqttRegister(mqttCallback);
 }
 
 void loop() {

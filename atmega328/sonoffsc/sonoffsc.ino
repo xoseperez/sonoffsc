@@ -18,6 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
+
+#include <Adafruit_NeoPixel.h>
 #include <DHT.h>
 #include <SerialLink.h>
 
@@ -39,8 +41,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define DHT_PIN                 6
 #ifndef DHT_TYPE
+// Uncomment the sensor type that you have (comment the other if applicable)
 #define DHT_TYPE                DHT11
+//#define DHT_TYPE                DHT22
 #endif
+
+#define RGB_PIN					11
 
 #define ADC_COUNTS              1024
 #define MICROPHONE_PIN          A2
@@ -58,10 +64,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define MAX_SERIAL_BUFFER       20
 
-#define DEFAULT_EVERY           0
+#define DEFAULT_EVERY           60
 #define DEFAULT_PUSH            0
 #define DEFAULT_CLAP            0
 #define DEFAULT_THRESHOLD       0
+
+#define RGB_WIPE				1
+#define RGB_RAINBOW				2
+#define RGB_RAINBOW_CYCLE		3
 
 // -----------------------------------------------------------------------------
 // Keywords
@@ -79,10 +89,24 @@ const PROGMEM char at_clap[] = "AT+CLAP";
 const PROGMEM char at_code[] = "AT+CODE";
 const PROGMEM char at_thld[] = "AT+THLD";
 const PROGMEM char at_led[] = "AT+LED";
+const PROGMEM char at_r[] = "AT+R";
+const PROGMEM char at_g[] = "AT+G";
+const PROGMEM char at_b[] = "AT+B";
+const PROGMEM char at_effect[] = "AT+EFFECT";
+const PROGMEM char at_rgb_exec[] = "AT+RGBEXEC";
 
 // -----------------------------------------------------------------------------
 // Globals
 // -----------------------------------------------------------------------------
+
+// Parameter 1 = number of pixels in strip
+// Parameter 2 = pin number (most are valid)
+// Parameter 3 = pixel type flags, add together as needed:
+//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
+//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
+//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(24, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
 SerialLink link(Serial);
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -99,7 +123,7 @@ byte clapPointer = 0;
 
 bool push = DEFAULT_PUSH;
 bool clap = DEFAULT_CLAP;
-unsigned int every = DEFAULT_EVERY;
+unsigned int every = DEFAULT_EVERY * 1000;
 unsigned int threshold = DEFAULT_THRESHOLD;
 
 float temperature;
@@ -107,6 +131,11 @@ int humidity;
 float dust;
 int light;
 int noise;
+
+// RGB Global Variables
+bool rgbExec = true;				// Should code execute
+int colorR, colorG, colorB = 0;		// Component colors.  
+int rgbEffect = RGB_WIPE;			// default animation 
 
 //unsigned int noise_count = 0;
 //unsigned long noise_sum = 0;
@@ -302,7 +331,7 @@ void noiseLoop() {
     unsigned int max = 0;
 
     // Check MIC every NOISE_READING_DELAY
-    //if (millis() - last_reading < NOISE_READING_DELAY) return;
+    // if (millis() - last_reading < NOISE_READING_DELAY) return;
     last_reading = millis();
 
     while (millis() - last_reading < NOISE_READING_WINDOW) {
@@ -348,7 +377,8 @@ void noiseLoop() {
 // COMMUNICATION
 // -----------------------------------------------------------------------------
 
-bool linkGet(char * key) {
+// How to respond to AT+...=? requests
+bool linkGet(char * key) {  
 
     if (strcmp_P(key, at_push) == 0) {
         link.send(key, push ? 1 : 0, false);
@@ -409,6 +439,7 @@ bool linkGet(char * key) {
 
 }
 
+// Functions for responding to AT+...=<int> commands that set values and functions
 bool linkSet(char * key, int value) {
 
     if (strcmp_P(key, at_push) == 0) {
@@ -427,6 +458,7 @@ bool linkSet(char * key, int value) {
 
     if (strcmp_P(key, at_every) == 0) {
         if (5 <= value && value <= 300) {
+
             every = 1000 * value;
             return true;
         }
@@ -445,18 +477,78 @@ bool linkSet(char * key, int value) {
             return true;
         }
     }
-
+	if (strcmp_P(key, at_r) == 0) {  // rgb value sent
+		if (0 <= value && value <= 255) {
+			colorR = value;
+			return true;
+		}
+	}
+	if (strcmp_P(key, at_g) == 0) {  // rgb value sent
+		if (0 <= value && value <= 255) {
+			colorG = value;
+			return true;
+		}
+	}
+	if (strcmp_P(key, at_b) == 0) {  // rgb value sent
+		if (0 <= value && value <= 255) {
+			colorB = value;
+			return true;
+		}
+	}
+	if (strcmp_P(key, at_rgb_exec) == 0) {
+		if (0 <= value && value <= 1) {
+			rgbExec = value == 1;
+			return true;
+		}
+	}
     return false;
-
 }
 
+//Setup callbacks when AT commands are recieved
 void linkSetup() {
     link.onGet(linkGet);
     link.onSet(linkSet);
 }
 
+// Check for incoming AT+ commands
 void linkLoop() {
     link.handle();
+}
+
+// Check to see if WS2812 light ring has any instructions awaiting
+void rgbLoop(int rgbEffect = RGB_WIPE, bool restoreColor = true) {
+	if (rgbExec == true) {
+		switch(rgbEffect) {
+			case RGB_WIPE:
+				// Do wipe animation here
+				colorWipe(strip.Color(colorR, colorG, colorB), 5);
+				rgbExec = false;	// Only do this once...
+				break;
+
+			case RGB_RAINBOW:
+				// Do Rainbow animation here
+				rainbow(1);
+				if (restoreColor) {
+					rgbEffect = RGB_WIPE;
+					rgbExec = true;
+				}
+				else {
+					colorWipe(0, 0); // Switch off all LEDS No delay
+				}
+				break;
+
+			case RGB_RAINBOW_CYCLE:
+				rainbowCycle(1);
+				if (restoreColor) {
+					rgbEffect = RGB_WIPE;
+					rgbExec = true;
+				}
+				else {
+					colorWipe(0, 0); // Switch off all LEDS No delay
+				}
+				break;
+		}
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -465,21 +557,31 @@ void linkLoop() {
 
 void setup() {
 
+	// Setup Serial port
     Serial.begin(SERIAL_BAUDRATE);
     link.send_P(at_hello, 1);
 
     linkSetup();
 
+	// Setup physical pins on the ATMega328 
     pinMode(LED_PIN, OUTPUT);
-    ledStatus(false);
-    pinMode(LDR_PIN, INPUT);
+	pinMode(LDR_PIN, INPUT);
     pinMode(DHT_PIN, INPUT);
     pinMode(SHARP_LED_PIN, OUTPUT);
     pinMode(SHARP_READ_PIN, INPUT);
     pinMode(MICROPHONE_PIN, INPUT_PULLUP);
+	pinMode(RGB_PIN, OUTPUT);
 
+	// Switch LED off (just to be sure)
+    ledStatus(false);
+
+	// Setup the DHT Thermometer/Humidity Sensor
     dht.begin();
 
+	// Neopixel setup and start animation
+	strip.begin();
+	strip.setBrightness(30); //adjust brightness here
+	strip.show(); // Initialize all pixels to 'off'
 }
 
 void loop() {
@@ -488,6 +590,7 @@ void loop() {
 
     linkLoop();
 
+	// If AT+EVERY>0 then we are sending a signal every so many seconds
     if ((every > 0) && ((millis() - last > every) || (last == 0))) {
 
         last = millis();
@@ -515,8 +618,13 @@ void loop() {
         noise = getNoise();
         if (push) link.send_P(at_noise, noise, false);
 
+		// animate to indicate reading has occurred
+		rgbExec = true;			// Set the Exec flag to on
+		rgbLoop(RGB_RAINBOW);	// Set the Animation type
     }
 
     noiseLoop();
+
+	rgbLoop();
 
 }

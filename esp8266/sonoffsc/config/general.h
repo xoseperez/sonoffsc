@@ -65,6 +65,7 @@
 #define MQTT_CLAP_TOPIC         "/clap"
 #define MQTT_DUST_TOPIC         "/dust"
 #define MQTT_LIGHT_TOPIC        "/light"
+#define MQTT_RGB_TOPIC			"/rgb"
 
 // -----------------------------------------------------------------------------
 // API
