@@ -123,7 +123,7 @@ byte clapPointer = 0;
 
 bool push = DEFAULT_PUSH;
 bool clap = DEFAULT_CLAP;
-unsigned int every = DEFAULT_EVERY * 1000;
+unsigned long every = 1000L * DEFAULT_EVERY;
 unsigned int threshold = DEFAULT_THRESHOLD;
 
 float temperature;
@@ -134,8 +134,8 @@ int noise;
 
 // RGB Global Variables
 bool rgbExec = true;				// Should code execute
-int colorR, colorG, colorB = 0;		// Component colors.  
-int rgbEffect = RGB_WIPE;			// default animation 
+int colorR, colorG, colorB = 0;		// Component colors.
+int rgbEffect = RGB_WIPE;			// default animation
 
 //unsigned int noise_count = 0;
 //unsigned long noise_sum = 0;
@@ -378,7 +378,7 @@ void noiseLoop() {
 // -----------------------------------------------------------------------------
 
 // How to respond to AT+...=? requests
-bool linkGet(char * key) {  
+bool linkGet(char * key) {
 
     if (strcmp_P(key, at_push) == 0) {
         link.send(key, push ? 1 : 0, false);
@@ -563,7 +563,7 @@ void setup() {
 
     linkSetup();
 
-	// Setup physical pins on the ATMega328 
+	// Setup physical pins on the ATMega328
     pinMode(LED_PIN, OUTPUT);
 	pinMode(LDR_PIN, INPUT);
     pinMode(DHT_PIN, INPUT);

@@ -2,7 +2,7 @@
 
 Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
 
-**Current Release Version is 0.2.0**, read the [changelog](CHANGELOG.md).
+**Current Release Version is 0.3.0**, read the [changelog](CHANGELOG.md).
 
 ## Features
 
@@ -14,6 +14,7 @@ Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
     * **GM55 LDR**
     * **Electret microphone**
 * **Clap monitoring** (switch light on/off clapping your hands)
+* **Support for RGB LED ring** for notifications you can drive via MQTT messages (thanks to Blair Thompson)
 * Fast asynchronous **HTTP Server**
     * Basic authentication
     * Web-based configuration
