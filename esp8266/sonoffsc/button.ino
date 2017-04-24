@@ -19,12 +19,18 @@ void buttonSetup() {
 
 void buttonLoop() {
 
-    if (_button.loop()) {
-        uint8_t event = _button.getEvent();
-        DEBUG_MSG("[BUTTON] Button pressed. Event: %d\n", event);
-        if (event == EVENT_DOUBLE_CLICK) createAP();
-        if (event == EVENT_LONG_CLICK) ESP.reset();
-        //if (event == EVENT_SINGLE_CLICK) relayToggle(i);
+    if (uint8_t event = _button.loop()) {
+        
+		if (event == EVENT_RELEASED) {
+            DEBUG_MSG("[BUTTON] Button pressed. Event: %d Length:%d\n", _button.getEventCount(), _button.getEventLength());
+            if(_button.getEventCount() == 1)
+              //relayToggle(i);
+            if(_button.getEventCount() >= 2)
+              createAP();
+            if(_button.getEventLength() >= 3000)
+              ESP.reset();
+        }
+		
     }
 
 }
