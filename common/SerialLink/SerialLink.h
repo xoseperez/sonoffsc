@@ -43,15 +43,15 @@ class SerialLink {
 
         void handle();
         void onGet(bool (*callback)(char * command));
-        void onSet(bool (*callback)(char * command, int payload));
+        void onSet(bool (*callback)(char * command, long payload));
         void clear();
 
         void sendRaw(const char * string);
         void sendRaw_P(const char * string);
-        bool send(const char * command, int payload);
-        bool send(const char * command, int payload, bool doACK);
-        bool send_P(const char * command, int payload);
-        bool send_P(const char * command, int payload, bool doACK);
+        bool send(const char * command, long payload);
+        bool send(const char * command, long payload, bool doACK);
+        bool send_P(const char * command, long payload);
+        bool send_P(const char * command, long payload, bool doACK);
         void sendOK();
         void sendInvalid();
 
@@ -66,7 +66,7 @@ class SerialLink {
         char _splitChar = DEFAULT_SPLIT_CHAR;
         char _queryChar = DEFAULT_QUERY_CHAR;
         bool (*_onGet)(char *) = NULL;
-        bool (*_onSet)(char *, int) = NULL;
+        bool (*_onSet)(char *, long) = NULL;
 
 };
 

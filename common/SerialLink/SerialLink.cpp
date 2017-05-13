@@ -38,12 +38,12 @@ void SerialLink::handle() {
     if (count>1) {						// if there is more than 1 then add it to a buffer
 
         byte buffer[MAX_BUFFER_SIZE];
-        int length = _serial->readBytesUntil(_terminateChar, buffer, MAX_BUFFER_SIZE-1);  
+        int length = _serial->readBytesUntil(_terminateChar, buffer, MAX_BUFFER_SIZE-1);
 
         if (length>1) {
 
             // Convert it to C string
-            buffer[length] = 0;		
+            buffer[length] = 0;
 
             // Find the split char
             int split = 0;
@@ -73,7 +73,7 @@ void SerialLink::handle() {
                 // set value
                 } else {  // must be the esp is setting a value then
 
-                    int value = 0;
+                    long value = 0;
                     while (char c = buffer[++split]) {  // gather the value
                         value = 10 * value + c - '0';
                     }
@@ -98,7 +98,7 @@ void SerialLink::onGet(bool (*callback)(char * command)) {
     _onGet = callback;
 }
 
-void SerialLink::onSet(bool (*callback)(char * command, int payload)) {
+void SerialLink::onSet(bool (*callback)(char * command, long payload)) {
     _onSet = callback;
 }
 
@@ -117,10 +117,10 @@ void SerialLink::sendRaw_P(const char * string) {
     _serial->write(_terminateChar);
 }
 
-bool SerialLink::send(const char * command, int payload, bool doACK) {
+bool SerialLink::send(const char * command, long payload, bool doACK) {
 
     char buffer[strlen(command) + 10];
-    sprintf(buffer, "%s%c%d", command, _splitChar, payload);
+    sprintf(buffer, "%s%c%ld", command, _splitChar, payload);
     sendRaw(buffer);
 
     bool response = !doACK;
@@ -136,11 +136,11 @@ bool SerialLink::send(const char * command, int payload, bool doACK) {
 
 }
 
-bool SerialLink::send(const char * command, int payload) {
+bool SerialLink::send(const char * command, long payload) {
     return send(command, payload, _doACK);
 }
 
-bool SerialLink::send_P(const char * command, int payload, bool doACK) {
+bool SerialLink::send_P(const char * command, long payload, bool doACK) {
 
     // Find size
     int len = 1;
@@ -155,7 +155,7 @@ bool SerialLink::send_P(const char * command, int payload, bool doACK) {
 
 }
 
-bool SerialLink::send_P(const char * command, int payload) {
+bool SerialLink::send_P(const char * command, long payload) {
     return send_P(command, payload, _doACK);
 }
 
