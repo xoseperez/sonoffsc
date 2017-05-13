@@ -178,20 +178,19 @@ void mqttLoop() {
 
 }
 
-// Callback to subscribe 
+// Callback to subscribe
 void mqttCallback(unsigned int type, const char * topic, const char * payload) {
 
 	// When connected, subscribe to the topic
 	if (type == MQTT_CONNECT_EVENT) {
 		mqttSubscribe(MQTT_RGB_TOPIC);
-		// Feel I should be using mqttSubscribe here... 
 	}
 
-	// 
+	//
 	if (type == MQTT_MESSAGE_EVENT) {
 		String mqttTopic = (MQTT_TOPIC + (String)MQTT_RGB_TOPIC);
 		if (strcmp(topic, mqttTopic.c_str()) == 0) {
-			sendColor((char*)payload);
+			//sendColor((char*)payload);
 		}
 	}
 }

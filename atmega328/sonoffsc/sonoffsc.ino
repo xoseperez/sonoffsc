@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#include <Adafruit_NeoPixel.h>
+#include <WS2812FX.h>
 #include <DHT.h>
 #include <SerialLink.h>
 
@@ -46,7 +46,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //#define DHT_TYPE                DHT22
 #endif
 
-#define RGB_PIN					11
+#define RGB_PIN			        12
+#define RGB_COUNT               24
+#define RGB_TIMEOUT             5000
+#define RGB_SPEED               255
+#define RGB_BRIGHTNESS          255
+#define RGB_COLOR               0x000000
+#define RGB_EFFECT              FX_MODE_STATIC
 
 #define ADC_COUNTS              1024
 #define MICROPHONE_PIN          A2
@@ -69,10 +75,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define DEFAULT_CLAP            0
 #define DEFAULT_THRESHOLD       0
 
-#define RGB_WIPE				1
-#define RGB_RAINBOW				2
-#define RGB_RAINBOW_CYCLE		3
-
 // -----------------------------------------------------------------------------
 // Keywords
 // -----------------------------------------------------------------------------
@@ -89,11 +91,11 @@ const PROGMEM char at_clap[] = "AT+CLAP";
 const PROGMEM char at_code[] = "AT+CODE";
 const PROGMEM char at_thld[] = "AT+THLD";
 const PROGMEM char at_led[] = "AT+LED";
-const PROGMEM char at_r[] = "AT+R";
-const PROGMEM char at_g[] = "AT+G";
-const PROGMEM char at_b[] = "AT+B";
+const PROGMEM char at_timeout[] = "AT+TIMEOUT";
 const PROGMEM char at_effect[] = "AT+EFFECT";
-const PROGMEM char at_rgb_exec[] = "AT+RGBEXEC";
+const PROGMEM char at_rgb[] = "AT+RGB";
+const PROGMEM char at_bright[] = "AT+BRIGHT";
+const PROGMEM char at_speed[] = "AT+SPEED";
 
 // -----------------------------------------------------------------------------
 // Globals
@@ -106,7 +108,10 @@ const PROGMEM char at_rgb_exec[] = "AT+RGBEXEC";
 //   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(24, RGB_PIN, NEO_GRB + NEO_KHZ800);
+WS2812FX ws2812fx = WS2812FX(RGB_COUNT, RGB_PIN, NEO_GRB + NEO_KHZ800);
+bool rgbRunning = false;
+unsigned long rgbTimeout = RGB_TIMEOUT;
+unsigned long rgbStart = 0;
 
 SerialLink link(Serial);
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -132,11 +137,6 @@ float dust;
 int light;
 int noise;
 
-// RGB Global Variables
-bool rgbExec = true;				// Should code execute
-int colorR, colorG, colorB = 0;		// Component colors.
-int rgbEffect = RGB_WIPE;			// default animation
-
 //unsigned int noise_count = 0;
 //unsigned long noise_sum = 0;
 //unsigned int noise_peak = 0;
@@ -148,7 +148,7 @@ unsigned int noise_buffer_pointer = 0;
 unsigned int noise_buffer_sum = 0;
 
 // -----------------------------------------------------------------------------
-// ACTUATORS
+// LED
 // -----------------------------------------------------------------------------
 
 void ledStatus(bool status) {
@@ -157,6 +157,37 @@ void ledStatus(bool status) {
 
 bool ledStatus() {
     return digitalRead(LED_PIN) == HIGH;
+}
+
+// -----------------------------------------------------------------------------
+// RGB LED
+// -----------------------------------------------------------------------------
+
+void rgbLoop() {
+
+    ws2812fx.service();
+
+    if (rgbRunning && (rgbTimeout > 0)) {
+        if (millis() - rgbStart > rgbTimeout) {
+            ws2812fx.setColor(0);
+            ws2812fx.setMode(FX_MODE_STATIC);
+            rgbRunning = false;
+        }
+    }
+
+}
+
+void rgbEffect(unsigned int effect) {
+    ws2812fx.setMode(effect);
+    rgbStart = millis();
+    rgbRunning = true;
+}
+
+void rgbColor(unsigned long color) {
+    ws2812fx.setColor(color);
+    ws2812fx.setMode(FX_MODE_STATIC);
+    rgbStart = millis();
+    rgbRunning = true;
 }
 
 // -----------------------------------------------------------------------------
@@ -435,12 +466,27 @@ bool linkGet(char * key) {
         return true;
     }
 
+    if (strcmp_P(key, at_timeout) == 0) {
+        link.send(key, rgbTimeout, false);
+        return true;
+    }
+
+    if (strcmp_P(key, at_speed) == 0) {
+        link.send(key, ws2812fx.getSpeed(), false);
+        return true;
+    }
+
+    if (strcmp_P(key, at_bright) == 0) {
+        link.send(key, ws2812fx.getBrightness(), false);
+        return true;
+    }
+
     return false;
 
 }
 
-// Functions for responding to AT+...=<int> commands that set values and functions
-bool linkSet(char * key, int value) {
+// Functions for responding to AT+...=<long> commands that set values and functions
+bool linkSet(char * key, long value) {
 
     if (strcmp_P(key, at_push) == 0) {
         if (0 <= value && value <= 1) {
@@ -477,31 +523,44 @@ bool linkSet(char * key, int value) {
             return true;
         }
     }
-	if (strcmp_P(key, at_r) == 0) {  // rgb value sent
-		if (0 <= value && value <= 255) {
-			colorR = value;
-			return true;
-		}
+
+    if (strcmp_P(key, at_timeout) == 0) {
+        if (0 <= value) {
+            rgbTimeout = value;
+            return true;
+        }
 	}
-	if (strcmp_P(key, at_g) == 0) {  // rgb value sent
-		if (0 <= value && value <= 255) {
-			colorG = value;
-			return true;
-		}
+
+	if (strcmp_P(key, at_rgb) == 0) {
+        if (0 <= value && value <= 0xFFFFFF) {
+            rgbColor(value);
+            return true;
+        }
 	}
-	if (strcmp_P(key, at_b) == 0) {  // rgb value sent
-		if (0 <= value && value <= 255) {
-			colorB = value;
-			return true;
-		}
+
+    if (strcmp_P(key, at_effect) == 0) {
+        if (0 <= value && value < MODE_COUNT) {
+            rgbEffect(value);
+            return true;
+        }
 	}
-	if (strcmp_P(key, at_rgb_exec) == 0) {
-		if (0 <= value && value <= 1) {
-			rgbExec = value == 1;
-			return true;
-		}
+
+    if (strcmp_P(key, at_speed) == 0) {
+        if (SPEED_MIN <= value && value <= SPEED_MAX) {
+            ws2812fx.setSpeed(value);
+            return true;
+        }
 	}
+
+    if (strcmp_P(key, at_bright) == 0) {
+        if (BRIGHTNESS_MIN <= value && value <= BRIGHTNESS_MAX) {
+            ws2812fx.setBrightness(value);
+            return true;
+        }
+	}
+
     return false;
+
 }
 
 //Setup callbacks when AT commands are recieved
@@ -513,42 +572,6 @@ void linkSetup() {
 // Check for incoming AT+ commands
 void linkLoop() {
     link.handle();
-}
-
-// Check to see if WS2812 light ring has any instructions awaiting
-void rgbLoop(int rgbEffect = RGB_WIPE, bool restoreColor = true) {
-	if (rgbExec == true) {
-		switch(rgbEffect) {
-			case RGB_WIPE:
-				// Do wipe animation here
-				colorWipe(strip.Color(colorR, colorG, colorB), 5);
-				rgbExec = false;	// Only do this once...
-				break;
-
-			case RGB_RAINBOW:
-				// Do Rainbow animation here
-				rainbow(1);
-				if (restoreColor) {
-					rgbEffect = RGB_WIPE;
-					rgbExec = true;
-				}
-				else {
-					colorWipe(0, 0); // Switch off all LEDS No delay
-				}
-				break;
-
-			case RGB_RAINBOW_CYCLE:
-				rainbowCycle(1);
-				if (restoreColor) {
-					rgbEffect = RGB_WIPE;
-					rgbExec = true;
-				}
-				else {
-					colorWipe(0, 0); // Switch off all LEDS No delay
-				}
-				break;
-		}
-	}
 }
 
 // -----------------------------------------------------------------------------
@@ -570,7 +593,6 @@ void setup() {
     pinMode(SHARP_LED_PIN, OUTPUT);
     pinMode(SHARP_READ_PIN, INPUT);
     pinMode(MICROPHONE_PIN, INPUT_PULLUP);
-	pinMode(RGB_PIN, OUTPUT);
 
 	// Switch LED off (just to be sure)
     ledStatus(false);
@@ -579,9 +601,16 @@ void setup() {
     dht.begin();
 
 	// Neopixel setup and start animation
-	strip.begin();
-	strip.setBrightness(30); //adjust brightness here
-	strip.show(); // Initialize all pixels to 'off'
+    ws2812fx.init();
+    ws2812fx.setBrightness(RGB_BRIGHTNESS);
+    ws2812fx.setSpeed(RGB_SPEED);
+    ws2812fx.setColor(RGB_COLOR);
+    ws2812fx.setMode(RGB_EFFECT);
+    ws2812fx.start();
+
+    rgbStart = millis();
+    rgbRunning = true;
+
 }
 
 void loop() {
@@ -618,13 +647,11 @@ void loop() {
         noise = getNoise();
         if (push) link.send_P(at_noise, noise, false);
 
-		// animate to indicate reading has occurred
-		rgbExec = true;			// Set the Exec flag to on
-		rgbLoop(RGB_RAINBOW);	// Set the Animation type
+        noiseLoop();
+
     }
 
     noiseLoop();
-
-	rgbLoop();
+    rgbLoop();
 
 }

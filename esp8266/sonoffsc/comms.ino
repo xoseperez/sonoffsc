@@ -9,6 +9,7 @@ Copyright (C) 2016 by Xose Pérez <xose dot perez at gmail dot com>
 #include "SerialLink.h"
 SerialLink link(Serial, false);
 
+const PROGMEM char at_hello[] = "AT+HELLO";
 const PROGMEM char at_push[] = "AT+PUSH";
 const PROGMEM char at_every[] = "AT+EVERY";
 const PROGMEM char at_temp[] = "AT+TEMP";
@@ -19,11 +20,12 @@ const PROGMEM char at_light[] = "AT+LIGHT";
 const PROGMEM char at_clap[] = "AT+CLAP";
 const PROGMEM char at_code[] = "AT+CODE";
 const PROGMEM char at_thld[] = "AT+THLD";
-const PROGMEM char at_r[] = "AT+R";
-const PROGMEM char at_g[] = "AT+G";
-const PROGMEM char at_b[] = "AT+B";
+const PROGMEM char at_led[] = "AT+LED";
+const PROGMEM char at_timeout[] = "AT+TIMEOUT";
 const PROGMEM char at_effect[] = "AT+EFFECT";
-const PROGMEM char at_rgb_exec[] = "AT+RGBEXEC";
+const PROGMEM char at_rgb[] = "AT+RGB";
+const PROGMEM char at_bright[] = "AT+BRIGHT";
+const PROGMEM char at_speed[] = "AT+SPEED";
 
 // -----------------------------------------------------------------------------
 // VALUES
@@ -34,14 +36,12 @@ int humidity;
 int light;
 float dust;
 int noise;
-uint32 rgb;
 
 float getTemperature() { return temperature; }
 float getHumidity() { return humidity; }
 float getLight() { return light; }
 float getDust() { return dust; }
 float getNoise() { return noise; }
-uint32 getRGB() { return rgb; }
 
 // -----------------------------------------------------------------------------
 // COMMUNICATIONS
@@ -132,13 +132,4 @@ void commsSetup() {
 
 void commsLoop() {
     link.handle();
-}
-
-// Function to send AT commands that set rgb colors.
-void commSendRGB(int r, int g, int b) {
-
-	link.send_P(at_r, r);			// Send red value
-	link.send_P(at_g, g);			// Send blue value
-	link.send_P(at_b, b);			// Send green value
-	link.send_P(at_rgb_exec, 1);	// Send execute instruction
 }
