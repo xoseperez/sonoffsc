@@ -2,7 +2,7 @@
 // GENERAL
 //------------------------------------------------------------------------------
 
-#define SERIAL_BAUDRATE         115200
+#define SERIAL_BAUDRATE         57600
 #define HOSTNAME                APP_NAME
 #define DEVICE                  APP_NAME
 #define MANUFACTURER            "ITEAD STUDIO"
@@ -66,6 +66,7 @@
 #define MQTT_DUST_TOPIC         "/dust"
 #define MQTT_LIGHT_TOPIC        "/light"
 #define MQTT_RGB_TOPIC			"/rgb"
+#define MQTT_MOVE_TOPIC			"/movement"
 
 // -----------------------------------------------------------------------------
 // API

@@ -217,6 +217,9 @@ function processData(data) {
         if (key == "mqttStatus") {
             data.mqttStatus = data.mqttStatus ? "CONNECTED" : "NOT CONNECTED";
         }
+        if (key == "sensorMovement") {
+            data.sensorMovement = data.sensorMovement ? "YES" : "NO";
+        }
 
         // Look for INPUTs
         var element = $("input[name=" + key + "]");

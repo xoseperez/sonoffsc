@@ -29,7 +29,7 @@ void fauxmoSetup() {
             } else {
                 wsSend((char *) "{\"clapEnabled\": false}");
             }
-            commConfigure();
+            commsConfigure();
         }
 
     });

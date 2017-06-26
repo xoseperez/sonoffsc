@@ -74,7 +74,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
 
             // Let the HTTP request return and disconnect after 100ms
             deferred.once_ms(100, wifiDisconnect);
-            
+
         }
 
     };
@@ -189,7 +189,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
             wifiConfigure();
             otaConfigure();
             buildTopics();
-            commConfigure();
+            commsConfigure();
 
             // Check if we should reconfigure MQTT connection
             if (dirtyMQTT) {
@@ -241,6 +241,7 @@ void _wsStart(uint32_t client_id) {
     root["mqttTopicHum"] = getSetting("mqttTopicHum", MQTT_HUMIDITY_TOPIC);
     root["mqttTopicNoise"] = getSetting("mqttTopicNoise", MQTT_NOISE_TOPIC);
     root["mqttTopicDust"] = getSetting("mqttTopicDust", MQTT_DUST_TOPIC);
+    root["mqttTopicMovement"] = getSetting("mqttTopicMovement", MQTT_MOVE_TOPIC);
     root["mqttTopicClap"] = getSetting("mqttTopicClap", MQTT_CLAP_TOPIC);
 
     root["apiVisible"] = 0;
@@ -256,6 +257,7 @@ void _wsStart(uint32_t client_id) {
         root["dczIdxTemp"] = getSetting("dczIdxTemp").toInt();
         root["dczIdxHum"] = getSetting("dczIdxHum").toInt();
         root["dczIdxNoise"] = getSetting("dczIdxNoise").toInt();
+        root["dczIdxMovement"] = getSetting("dczIdxMovement").toInt();
         root["dczIdxLight"] = getSetting("dczIdxLight").toInt();
         root["dczIdxDust"] = getSetting("dczIdxDust").toInt();
 
@@ -266,6 +268,7 @@ void _wsStart(uint32_t client_id) {
     root["sensorLight"] = getLight();
     root["sensorNoise"] = getNoise();
     root["sensorDust"] = getDust();
+    root["sensorMovement"] = getMovement();
     root["sensorEvery"] = getSetting("sensorEvery", SENSOR_EVERY).toInt();
     root["clapEnabled"] = getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1;
 
@@ -446,6 +449,7 @@ void _onSensors(AsyncWebServerRequest *request) {
     root["dust"] = getDust();
     root["light"] = getLight();
     root["noise"] = getNoise();
+    root["movement"] = getMovement();
 
     String output;
     root.printTo(output);

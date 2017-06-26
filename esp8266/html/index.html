@@ -139,6 +139,10 @@
                                     <input class="pure-u-1 pure-u-sm-3-4" type="text" name="sensorNoise" readonly />
                                 </div>
 
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4" for="sensorMove">Movement</label>
+                                    <input class="pure-u-1 pure-u-sm-3-4" type="text" name="sensorMove" readonly />
+                                </div>
 
                             </fieldset>
 
@@ -294,8 +298,13 @@
                                 </div>
 
                                 <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-md-1-4" for="mqttTopicMovement">Movement Topic</label>
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttTopicMovement" type="text" size="20" tabindex="31" />
+                                </div>
+
+                                <div class="pure-g">
                                     <label class="pure-u-1 pure-u-md-1-4" for="mqttTopicClap">Clap Topic</label>
-                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttTopicClap" type="text" size="20" tabindex="31" />
+                                    <input class="pure-u-1 pure-u-md-3-4" name="mqttTopicClap" type="text" size="20" tabindex="32" />
                                 </div>
 
                             </fieldset>
@@ -353,6 +362,12 @@
                                 <div class="pure-g">
                                     <label class="pure-u-1 pure-u-sm-1-4">Noise IDX</label>
                                     <div class="pure-u-1 pure-u-sm-1-8"><input class="pure-u-sm-23-24" name="dczIdxNoise" type="number" min="0" tabindex="47" /></div>
+                                    <div class="pure-u-1 pure-u-sm-5-8 hint center">Set to 0 to disable notifications.</div>
+                                </div>
+
+                                <div class="pure-g">
+                                    <label class="pure-u-1 pure-u-sm-1-4">Movement IDX</label>
+                                    <div class="pure-u-1 pure-u-sm-1-8"><input class="pure-u-sm-23-24" name="dczIdxMovement" type="number" min="0" tabindex="48" /></div>
                                     <div class="pure-u-1 pure-u-sm-5-8 hint center">Set to 0 to disable notifications.</div>
                                 </div>
 

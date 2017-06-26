@@ -22,14 +22,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <WS2812FX.h>
 #include <DHT.h>
 #include <SerialLink.h>
+#include <Ticker.h>
 
 // -----------------------------------------------------------------------------
 //
 // -----------------------------------------------------------------------------
 
-#define SERIAL_BAUDRATE         115200
+#define SERIAL_BAUDRATE         57600
 
-#define LED_PIN                 7
+#define FAN_PIN                 7
+#define FAN_TIME                5000
 
 #define LDR_PIN                 A3
 
@@ -48,7 +50,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define RGB_PIN			        12
 #define RGB_COUNT               24
-#define RGB_TIMEOUT             5000
+#define RGB_TIMEOUT             0
 #define RGB_SPEED               255
 #define RGB_BRIGHTNESS          255
 #define RGB_COLOR               0x000000
@@ -56,6 +58,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define ADC_COUNTS              1024
 #define MICROPHONE_PIN          A2
+
+#define MW_PIN                  13
 
 //#define NOISE_READING_DELAY     100
 #define NOISE_READING_WINDOW    20
@@ -90,12 +94,13 @@ const PROGMEM char at_light[] = "AT+LIGHT";
 const PROGMEM char at_clap[] = "AT+CLAP";
 const PROGMEM char at_code[] = "AT+CODE";
 const PROGMEM char at_thld[] = "AT+THLD";
-const PROGMEM char at_led[] = "AT+LED";
+const PROGMEM char at_fan[] = "AT+FAN";
 const PROGMEM char at_timeout[] = "AT+TIMEOUT";
 const PROGMEM char at_effect[] = "AT+EFFECT";
-const PROGMEM char at_rgb[] = "AT+RGB";
+const PROGMEM char at_color[] = "AT+COLOR";
 const PROGMEM char at_bright[] = "AT+BRIGHT";
 const PROGMEM char at_speed[] = "AT+SPEED";
+const PROGMEM char at_move[] = "AT+MOVE";
 
 // -----------------------------------------------------------------------------
 // Globals
@@ -118,6 +123,9 @@ DHT dht(DHT_PIN, DHT_TYPE);
 int clapTimings[CLAP_BUFFER_SIZE];
 byte clapPointer = 0;
 
+Ticker fanTicker;
+bool dustPush = false;
+
 // If push == false the slave waits for the master to request for values
 // If push == true the slaves sends messages
 //
@@ -136,6 +144,7 @@ int humidity;
 float dust;
 int light;
 int noise;
+bool movement;
 
 //unsigned int noise_count = 0;
 //unsigned long noise_sum = 0;
@@ -148,15 +157,15 @@ unsigned int noise_buffer_pointer = 0;
 unsigned int noise_buffer_sum = 0;
 
 // -----------------------------------------------------------------------------
-// LED
+// FAN
 // -----------------------------------------------------------------------------
 
-void ledStatus(bool status) {
-    digitalWrite(LED_PIN, status ? HIGH : LOW);
+void fanStatus(bool status) {
+    digitalWrite(FAN_PIN, status ? HIGH : LOW);
 }
 
-bool ledStatus() {
-    return digitalRead(LED_PIN) == HIGH;
+bool fanStatus() {
+    return digitalRead(FAN_PIN) == HIGH;
 }
 
 // -----------------------------------------------------------------------------
@@ -165,16 +174,20 @@ bool ledStatus() {
 
 void rgbLoop() {
 
-    ws2812fx.service();
-
     if (rgbRunning && (rgbTimeout > 0)) {
         if (millis() - rgbStart > rgbTimeout) {
-            ws2812fx.setColor(0);
-            ws2812fx.setMode(FX_MODE_STATIC);
+            ws2812fx.setMode(FX_MODE_FADE_OUT);
             rgbRunning = false;
         }
     }
 
+    ws2812fx.service();
+
+}
+
+void rgbOff() {
+    ws2812fx.setColor(0);
+    ws2812fx.setMode(FX_MODE_STATIC);
 }
 
 void rgbEffect(unsigned int effect) {
@@ -217,6 +230,19 @@ float getDust() {
 
 }
 
+void getDustDefer(bool push = false) {
+    fanStatus(true);
+    dustPush = push;
+    fanTicker.setInterval(FAN_TIME);
+    fanTicker.setCallback([](){
+        fanTicker.stop();
+        dust = getDust();
+        fanStatus(false);
+        if (dustPush) link.send_P(at_dust, 100 * dust, false);
+    });
+    fanTicker.start();
+}
+
 float getTemperature() {
     return dht.readTemperature();
 }
@@ -250,6 +276,22 @@ int getNoise() {
 
     return value;
 
+}
+
+// -----------------------------------------------------------------------------
+// MICROWAVE
+// -----------------------------------------------------------------------------
+
+bool getMovement() {
+    return digitalRead(MW_PIN) == HIGH;
+}
+
+void moveLoop(bool force = false) {
+    bool value = getMovement();
+    if (force || (movement != value)) {
+        link.send_P(at_move, value ? 1 : 0, false);
+    }
+    movement = value;
 }
 
 // -----------------------------------------------------------------------------
@@ -416,8 +458,8 @@ bool linkGet(char * key) {
         return true;
     }
 
-    if (strcmp_P(key, at_led) == 0) {
-        link.send(key, ledStatus() ? 1 : 0, false);
+    if (strcmp_P(key, at_fan) == 0) {
+        link.send(key, fanStatus() ? 1 : 0, false);
         return true;
     }
 
@@ -455,8 +497,11 @@ bool linkGet(char * key) {
     }
 
     if (strcmp_P(key, at_dust) == 0) {
-        if (every == 0) dust = getDust();
-        link.send(key, 100 * dust, false);
+        if (every == 0) {
+            getDustDefer(true);
+        } else {
+            link.send(key, 100 * dust, false);
+        }
         return true;
     }
 
@@ -466,8 +511,23 @@ bool linkGet(char * key) {
         return true;
     }
 
+    if (strcmp_P(key, at_move) == 0) {
+        link.send(key, getMovement() ? 1 : 0, false);
+        return true;
+    }
+
     if (strcmp_P(key, at_timeout) == 0) {
         link.send(key, rgbTimeout, false);
+        return true;
+    }
+
+    if (strcmp_P(key, at_effect) == 0) {
+        link.send(key, ws2812fx.getMode(), false);
+        return true;
+    }
+
+    if (strcmp_P(key, at_color) == 0) {
+        link.send(key, ws2812fx.getColor(), false);
         return true;
     }
 
@@ -503,8 +563,7 @@ bool linkSet(char * key, long value) {
     }
 
     if (strcmp_P(key, at_every) == 0) {
-        if (5 <= value && value <= 300) {
-
+        if (0 <= value && value <= 300) {
             every = 1000 * value;
             return true;
         }
@@ -517,9 +576,9 @@ bool linkSet(char * key, long value) {
         }
     }
 
-    if (strcmp_P(key, at_led) == 0) {
+    if (strcmp_P(key, at_fan) == 0) {
         if (0 <= value && value <= 1) {
-            ledStatus(value == 1);
+            fanStatus(value == 1);
             return true;
         }
     }
@@ -531,7 +590,7 @@ bool linkSet(char * key, long value) {
         }
 	}
 
-	if (strcmp_P(key, at_rgb) == 0) {
+	if (strcmp_P(key, at_color) == 0) {
         if (0 <= value && value <= 0xFFFFFF) {
             rgbColor(value);
             return true;
@@ -587,15 +646,16 @@ void setup() {
     linkSetup();
 
 	// Setup physical pins on the ATMega328
-    pinMode(LED_PIN, OUTPUT);
+    pinMode(FAN_PIN, OUTPUT);
 	pinMode(LDR_PIN, INPUT);
     pinMode(DHT_PIN, INPUT);
     pinMode(SHARP_LED_PIN, OUTPUT);
     pinMode(SHARP_READ_PIN, INPUT);
     pinMode(MICROPHONE_PIN, INPUT_PULLUP);
+    pinMode(MW_PIN, INPUT);
 
-	// Switch LED off (just to be sure)
-    ledStatus(false);
+	// Switch FAN off
+    fanStatus(false);
 
 	// Setup the DHT Thermometer/Humidity Sensor
     dht.begin();
@@ -624,6 +684,8 @@ void loop() {
 
         last = millis();
 
+        getDustDefer(push);
+
         temperature = getTemperature();
         if (push) link.send_P(at_temp, 10 * temperature, false);
 
@@ -631,11 +693,6 @@ void loop() {
 
         humidity = getHumidity();
         if (push) link.send_P(at_hum, humidity, false);
-
-        noiseLoop();
-
-        dust = getDust();
-        if (push) link.send_P(at_dust, 100 * dust, false);
 
         noiseLoop();
 
@@ -647,11 +704,13 @@ void loop() {
         noise = getNoise();
         if (push) link.send_P(at_noise, noise, false);
 
-        noiseLoop();
+        moveLoop(true);
 
     }
 
+    fanTicker.update();
     noiseLoop();
+    moveLoop();
     rgbLoop();
 
 }

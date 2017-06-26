@@ -147,10 +147,9 @@ void setup() {
     webSetup();
     commsSetup();
     fauxmoSetup();
-	commConfigure();
-
 
 	mqttRegister(mqttCallback);
+
 }
 
 void loop() {

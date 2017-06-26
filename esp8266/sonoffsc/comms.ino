@@ -7,7 +7,10 @@ Copyright (C) 2016 by Xose Pérez <xose dot perez at gmail dot com>
 */
 
 #include "SerialLink.h"
+#include <Ticker.h>
+
 SerialLink link(Serial, false);
+Ticker defer;
 
 const PROGMEM char at_hello[] = "AT+HELLO";
 const PROGMEM char at_push[] = "AT+PUSH";
@@ -20,12 +23,13 @@ const PROGMEM char at_light[] = "AT+LIGHT";
 const PROGMEM char at_clap[] = "AT+CLAP";
 const PROGMEM char at_code[] = "AT+CODE";
 const PROGMEM char at_thld[] = "AT+THLD";
-const PROGMEM char at_led[] = "AT+LED";
+const PROGMEM char at_fan[] = "AT+FAN";
 const PROGMEM char at_timeout[] = "AT+TIMEOUT";
 const PROGMEM char at_effect[] = "AT+EFFECT";
-const PROGMEM char at_rgb[] = "AT+RGB";
+const PROGMEM char at_color[] = "AT+COLOR";
 const PROGMEM char at_bright[] = "AT+BRIGHT";
 const PROGMEM char at_speed[] = "AT+SPEED";
+const PROGMEM char at_move[] = "AT+MOVE";
 
 // -----------------------------------------------------------------------------
 // VALUES
@@ -36,12 +40,17 @@ int humidity;
 int light;
 float dust;
 int noise;
+bool movement;
+
+bool gotResponse = false;
+long response;
 
 float getTemperature() { return temperature; }
 float getHumidity() { return humidity; }
 float getLight() { return light; }
 float getDust() { return dust; }
 float getNoise() { return noise; }
+float getMovement() { return movement; }
 
 // -----------------------------------------------------------------------------
 // COMMUNICATIONS
@@ -51,7 +60,7 @@ bool commsGet(char * key) {
     return false;
 }
 
-bool commsSet(char * key, int value) {
+bool commsSet(char * key, long value) {
 
     char buffer[50];
 
@@ -105,29 +114,57 @@ bool commsSet(char * key, int value) {
         return true;
     }
 
-    return false;
+    if (strcmp_P(key, at_move) == 0) {
+        movement = value;
+        mqttSend(getSetting("mqttTopicMovement", MQTT_MOVE_TOPIC).c_str(), movement ? "1" : "0");
+        domoticzSend("dczIdxMovement", movement);
+        sprintf(buffer, "{\"sensorMovement\": %d}", movement ? 1 : 0);
+        wsSend(buffer);
+        movement ? commsLightOn() : commsLightOff();
+        return true;
+    }
+
+    gotResponse = true;
+    response = value;
+
+    return true;
 
 }
 
-void commConfigure() {
-    link.send_P(at_every, getSetting("sensorEvery", SENSOR_EVERY).toInt());
-    link.send_P(at_clap, getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1 ? 1 : 0);
-    link.send_P(at_push, 1);
+bool send_P_repeat(const char * command, long payload, unsigned char tries = 3) {
+    while (tries--) {
+        link.send_P(command, payload);
+        delay(10);
+    }
+}
+
+void commsLightOn() {
+    send_P_repeat(at_effect,47);
+}
+
+void commsLightOff() {
+    send_P_repeat(at_effect,48);
+}
+
+void commsConfigure() {
+    link.clear();
+    delay(200);
+    send_P_repeat(at_every, getSetting("sensorEvery", SENSOR_EVERY).toInt());
+    send_P_repeat(at_clap, getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1 ? 1 : 0);
+    send_P_repeat(at_push,1);
+    //defer.once(5, commsLightOff);
 }
 
 void commsSetup() {
-
     link.onGet(commsGet);
     link.onSet(commsSet);
-
-    static WiFiEventHandler e3 = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected& event) {
-        commConfigure();
-    });
-
-    static WiFiEventHandler e4 = WiFi.onSoftAPModeStationConnected([](const WiFiEventSoftAPModeStationConnected& event) {
-        commConfigure();
-    });
-
+    link.clear();
+    delay(200);
+    send_P_repeat(at_timeout,0);
+    send_P_repeat(at_speed,100);
+    send_P_repeat(at_bright,0);
+    send_P_repeat(at_color,0x0000FF);
+    commsLightOn();
 }
 
 void commsLoop() {

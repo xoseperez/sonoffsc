@@ -147,6 +147,11 @@ void wifiSetup() {
 
 		#endif
 
+        // Configure communications
+	    if (code == MESSAGE_CONNECTED) {
+            commsConfigure();
+        }
+
         // Configure mDNS
 	    if (code == MESSAGE_CONNECTED) {
 
