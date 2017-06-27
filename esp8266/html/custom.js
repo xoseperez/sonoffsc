@@ -1,6 +1,8 @@
 var websock;
 var password = false;
 var maxNetworks;
+var host;
+var port;
 
 // http://www.the-art-of-web.com/javascript/validate-password/
 function checkPassword(str) {
@@ -10,9 +12,7 @@ function checkPassword(str) {
     return re.test(str);
 }
 
-function validateForm() {
-
-    var form = $("#formSave");
+function validateForm(form) {
 
     // password
     var adminPass1 = $("input[name='adminPass1']", form).val();
@@ -32,10 +32,19 @@ function validateForm() {
 }
 
 function doUpdate() {
-    if (validateForm()) {
-        var data = $("#formSave").serializeArray();
+    var form = $("#formSave");
+    if (validateForm(form)) {
+        var data = form.serializeArray();
         websock.send(JSON.stringify({'config': data}));
-        $(".powExpected").val(0);
+    }
+    return false;
+}
+
+function doUpdatePassword() {
+    var form = $("#formPassword");
+    if (validateForm(form)) {
+        var data = form.serializeArray();
+        websock.send(JSON.stringify({'config': data}));
     }
     return false;
 }
@@ -51,12 +60,6 @@ function doReconnect() {
     var response = window.confirm("Are you sure you want to disconnect from the current WIFI network?");
     if (response == false) return false;
     websock.send(JSON.stringify({'action': 'reconnect'}));
-    return false;
-}
-
-function doToggle(element, value) {
-    var relayID = parseInt(element.attr("data"));
-    websock.send(JSON.stringify({'action': value ? 'on' : 'off', 'relayID': relayID}));
     return false;
 }
 
@@ -123,6 +126,24 @@ function addNetwork() {
 
 }
 
+function forgetCredentials() {
+    $.ajax({
+        'method': 'GET',
+        'url': '/',
+        'async': false,
+        'username': "logmeout",
+        'password': "123456",
+        'headers': { "Authorization": "Basic xxx" }
+    }).done(function(data) {
+        return false;
+        // If we don't get an error, we actually got an error as we expect an 401!
+    }).fail(function(){
+        // We expect to get an 401 Unauthorized error! In this case we are successfully
+        // logged out and we redirect the user.
+        return true;
+    });
+}
+
 function processData(data) {
 
     // title
@@ -140,29 +161,22 @@ function processData(data) {
 
     Object.keys(data).forEach(function(key) {
 
+        // Web Modes
+        if (key == "webMode") {
+            password = data.webMode == 1;
+            $("#layout").toggle(data.webMode == 0);
+            $("#password").toggle(data.webMode == 1);
+            $("#credentials").hide();
+        }
+
         // Actions
         if (key == "action") {
 
             if (data.action == "reload") {
-                if (password) {
-
-                    // Forget current authentication
-                    $.ajax({
-                        'method': 'GET',
-                        'url': '/',
-                        'async': false,
-                        'username': "logmeout",
-                        'password': "123456",
-                        'headers': { "Authorization": "Basic xxx" }
-                    }).done(function(data) {
-                	    // If we don't get an error, we actually got an error as we expect an 401!
-                	}).fail(function(){
-                	    // We expect to get an 401 Unauthorized error! In this case we are successfully
-                        // logged out and we redirect the user.
-                	    window.location = "/";
-                    });
-
-                }
+                if (password) forgetCredentials();
+                setTimeout(function() {
+                    window.location = "/";
+                }, 1000);
             }
 
             return;
@@ -228,9 +242,18 @@ function processData(data) {
                 element
                     .prop("checked", data[key])
                     .iphoneStyle("refresh");
+            } else if (element.attr('type') == 'radio') {
+                element.val([data[key]]);
             } else {
                 element.val(data[key]);
             }
+            return;
+        }
+
+        // Look for SPANs
+        var element = $("span[name=" + key + "]");
+        if (element.length > 0) {
+            element.html(data[key]);
             return;
         }
 
@@ -258,14 +281,28 @@ function getJson(str) {
     }
 }
 
-function initWebSocket(host) {
-    if (host === undefined) {
-        host = window.location.hostname;
+function connect(h, p) {
+
+    if (typeof h === 'undefined') {
+        h = window.location.hostname;
     }
-    websock = new WebSocket('ws://' + host + '/ws');
-    websock.onopen = function(evt) {};
-    websock.onclose = function(evt) {};
-    websock.onerror = function(evt) {};
+    if (typeof p === 'undefined') {
+        p = location.port;
+    }
+    host = h;
+    port = p;
+
+    if (websock) websock.close();
+    websock = new WebSocket('ws://' + host + ':' + port + '/ws');
+    websock.onopen = function(evt) {
+        console.log("Connected");
+    };
+    websock.onclose = function(evt) {
+        console.log("Disconnected");
+    };
+    websock.onerror = function(evt) {
+        console.log("Error: ", evt);
+    };
     websock.onmessage = function(evt) {
         var data = getJson(evt.data);
         if (data) processData(data);
@@ -276,17 +313,25 @@ function init() {
 
     $("#menuLink").on('click', toggleMenu);
     $(".button-update").on('click', doUpdate);
+    $(".button-update-password").on('click', doUpdatePassword);
     $(".button-reset").on('click', doReset);
     $(".button-reconnect").on('click', doReconnect);
     $(".button-apikey").on('click', doGenerateAPIKey);
     $(".pure-menu-link").on('click', showPanel);
-    $(".button-add-network").on('click', addNetwork);
+    $(".button-add-network").on('click', function() {
+        $("div.more", addNetwork()).toggle();
+    });
+
+    var host = window.location.hostname;
+    var port = location.port;
 
     $.ajax({
         'method': 'GET',
-        'url': '/auth'
+        'url': 'http://' + host + ':' + port + '/auth'
     }).done(function(data) {
-        initWebSocket();
+        connect();
+    }).fail(function(){
+        $("#credentials").show();
     });
 
 }

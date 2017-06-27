@@ -15,39 +15,43 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 #include <ArduinoJson.h>
 #include <Ticker.h>
 
-AsyncWebServer server(80);
+AsyncWebServer * _server;
 AsyncWebSocket ws("/ws");
+Ticker deferred;
+
+#include "static/index.html.gz.h"
+char _last_modified[50];
 
 typedef struct {
     IPAddress ip;
     unsigned long timestamp = 0;
 } ws_ticket_t;
-
 ws_ticket_t _ticket[WS_BUFFER_SIZE];
-Ticker deferred;
 
 // -----------------------------------------------------------------------------
 // WEBSOCKETS
 // -----------------------------------------------------------------------------
 
-bool wsSend(char * payload) {
-    //DEBUG_MSG("[WEBSOCKET] Broadcasting '%s'\n", payload);
-    ws.textAll(payload);
+bool wsSend(const char * payload) {
+    if (ws.count() > 0) {
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] Broadcasting '%s'\n"), payload);
+        ws.textAll(payload);
+    }
 }
 
-bool wsSend(uint32_t client_id, char * payload) {
-    //DEBUG_MSG("[WEBSOCKET] Sending '%s' to #%ld\n", payload, client_id);
+bool wsSend(uint32_t client_id, const char * payload) {
+    DEBUG_MSG_P(PSTR("[WEBSOCKET] Sending '%s' to #%ld\n"), payload, client_id);
     ws.text(client_id, payload);
 }
 
 void wsMQTTCallback(unsigned int type, const char * topic, const char * payload) {
 
     if (type == MQTT_CONNECT_EVENT) {
-        wsSend((char *) "{\"mqttStatus\": true}");
+        wsSend("{\"mqttStatus\": true}");
     }
 
     if (type == MQTT_DISCONNECT_EVENT) {
-        wsSend((char *) "{\"mqttStatus\": false}");
+        wsSend("{\"mqttStatus\": false}");
     }
 
 }
@@ -58,7 +62,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
     DynamicJsonBuffer jsonBuffer;
     JsonObject& root = jsonBuffer.parseObject((char *) payload);
     if (!root.success()) {
-        DEBUG_MSG("[WEBSOCKET] Error parsing data\n");
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] Error parsing data\n"));
         ws.text(client_id, "{\"message\": \"Error parsing data!\"}");
         return;
     }
@@ -67,9 +71,13 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
     if (root.containsKey("action")) {
 
         String action = root["action"];
-        DEBUG_MSG("[WEBSOCKET] Requested action: %s\n", action.c_str());
 
-        if (action.equals("reset")) ESP.reset();
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] Requested action: %s\n"), action.c_str());
+
+        if (action.equals("reset")) {
+            ESP.restart();
+        }
+
         if (action.equals("reconnect")) {
 
             // Let the HTTP request return and disconnect after 100ms
@@ -83,20 +91,27 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
     if (root.containsKey("config") && root["config"].is<JsonArray&>()) {
 
         JsonArray& config = root["config"];
-        DEBUG_MSG("[WEBSOCKET] Parsing configuration data\n");
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] Parsing configuration data\n"));
 
-        bool dirty = false;
-        bool dirtyMQTT = false;
-        unsigned int network = 0;
-        String adminPass;
+        unsigned char webMode = WEB_MODE_NORMAL;
 
+        bool save = false;
+        bool changed = false;
+        bool changedMQTT = false;
         bool apiEnabled = false;
         bool clapEnabled = false;
+        unsigned int network = 0;
+        String adminPass;
 
         for (unsigned int i=0; i<config.size(); i++) {
 
             String key = config[i]["name"];
             String value = config[i]["value"];
+
+            if (key == "webMode") {
+                webMode = value.toInt();
+                continue;
+            }
 
             // Check password
             if (key == "adminPass1") {
@@ -144,46 +159,58 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
             }
 
             if (value != getSetting(key)) {
-                //DEBUG_MSG("[WEBSOCKET] Storing %s = %s\n", key.c_str(), value.c_str());
+                //DEBUG_MSG_P(PSTR("[WEBSOCKET] Storing %s = %s\n", key.c_str(), value.c_str()));
                 setSetting(key, value);
-                dirty = true;
-                if (key.startsWith("mqtt")) dirtyMQTT = true;
+                save = changed = true;
+                if (key.startsWith("mqtt")) changedMQTT = true;
             }
 
         }
 
-        // Checkboxes
-        if (apiEnabled != (getSetting("apiEnabled").toInt() == 1)) {
-            setSetting("apiEnabled", apiEnabled);
-            dirty = true;
-        }
-        if (clapEnabled != (getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1)) {
-            setSetting("clapEnabled", clapEnabled);
-            dirty = true;
-        }
+        if (webMode == WEB_MODE_NORMAL) {
 
-        // Clean wifi networks
-        for (int i = 0; i < network; i++) {
-            if (getSetting("pass" + String(i)).length() == 0) delSetting("pass" + String(i));
-            if (getSetting("ip" + String(i)).length() == 0) delSetting("ip" + String(i));
-            if (getSetting("gw" + String(i)).length() == 0) delSetting("gw" + String(i));
-            if (getSetting("mask" + String(i)).length() == 0) delSetting("mask" + String(i));
-            if (getSetting("dns" + String(i)).length() == 0) delSetting("dns" + String(i));
-        }
-        for (int i = network; i<WIFI_MAX_NETWORKS; i++) {
-            if (getSetting("ssid" + String(i)).length() > 0) {
-                dirty = true;
+            // Checkboxes
+            if (apiEnabled != (getSetting("apiEnabled").toInt() == 1)) {
+                setSetting("apiEnabled", apiEnabled);
+                save = changed = true;
             }
-            delSetting("ssid" + String(i));
-            delSetting("pass" + String(i));
-            delSetting("ip" + String(i));
-            delSetting("gw" + String(i));
-            delSetting("mask" + String(i));
-            delSetting("dns" + String(i));
+
+            if (clapEnabled != (getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1)) {
+                setSetting("clapEnabled", clapEnabled);
+                save = changed = true;
+            }
+
+            // Clean wifi networks
+            int i = 0;
+            while (i < network) {
+                if (getSetting("ssid" + String(i)).length() == 0) {
+                    delSetting("ssid" + String(i));
+                    break;
+                }
+                if (getSetting("pass" + String(i)).length() == 0) delSetting("pass" + String(i));
+                if (getSetting("ip" + String(i)).length() == 0) delSetting("ip" + String(i));
+                if (getSetting("gw" + String(i)).length() == 0) delSetting("gw" + String(i));
+                if (getSetting("mask" + String(i)).length() == 0) delSetting("mask" + String(i));
+                if (getSetting("dns" + String(i)).length() == 0) delSetting("dns" + String(i));
+                ++i;
+            }
+            while (i < WIFI_MAX_NETWORKS) {
+                if (getSetting("ssid" + String(i)).length() > 0) {
+                    save = changed = true;
+                }
+                delSetting("ssid" + String(i));
+                delSetting("pass" + String(i));
+                delSetting("ip" + String(i));
+                delSetting("gw" + String(i));
+                delSetting("mask" + String(i));
+                delSetting("dns" + String(i));
+                ++i;
+            }
+
         }
 
         // Save settings
-        if (dirty) {
+        if (save) {
 
             saveSettings();
             wifiConfigure();
@@ -192,16 +219,16 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
             commsConfigure();
 
             // Check if we should reconfigure MQTT connection
-            if (dirtyMQTT) {
+            if (changedMQTT) {
                 mqttDisconnect();
             }
 
+        }
+
+        if (changed) {
             ws.text(client_id, "{\"message\": \"Changes saved\"}");
-
         } else {
-
             ws.text(client_id, "{\"message\": \"No changes detected\"}");
-
         }
 
     }
@@ -216,73 +243,89 @@ void _wsStart(uint32_t client_id) {
     DynamicJsonBuffer jsonBuffer;
     JsonObject& root = jsonBuffer.createObject();
 
-    root["app"] = APP_NAME;
-    root["version"] = APP_VERSION;
-    root["buildDate"] = __DATE__;
-    root["buildTime"] = __TIME__;
-
-    root["manufacturer"] = String(MANUFACTURER);
-    root["chipid"] = chipid;
-    root["mac"] = WiFi.macAddress();
-    root["device"] = String(DEVICE);
-    root["hostname"] = getSetting("hostname", HOSTNAME);
-    root["network"] = getNetwork();
-    root["deviceip"] = getIP();
-
-    root["mqttStatus"] = mqttConnected();
-    root["mqttServer"] = getSetting("mqttServer", MQTT_SERVER);
-    root["mqttPort"] = getSetting("mqttPort", MQTT_PORT);
-    root["mqttUser"] = getSetting("mqttUser");
-    root["mqttPassword"] = getSetting("mqttPassword");
-
-    root["mqttTopic"] = getSetting("mqttTopic", MQTT_TOPIC);
-    root["mqttTopicLight"] = getSetting("mqttTopicLight", MQTT_LIGHT_TOPIC);
-    root["mqttTopicTemp"] = getSetting("mqttTopicTemp", MQTT_TEMPERATURE_TOPIC);
-    root["mqttTopicHum"] = getSetting("mqttTopicHum", MQTT_HUMIDITY_TOPIC);
-    root["mqttTopicNoise"] = getSetting("mqttTopicNoise", MQTT_NOISE_TOPIC);
-    root["mqttTopicDust"] = getSetting("mqttTopicDust", MQTT_DUST_TOPIC);
-    root["mqttTopicMovement"] = getSetting("mqttTopicMovement", MQTT_MOVE_TOPIC);
-    root["mqttTopicClap"] = getSetting("mqttTopicClap", MQTT_CLAP_TOPIC);
-
-    root["apiVisible"] = 0;
-    root["apiEnabled"] = getSetting("apiEnabled").toInt() == 1;
-    root["apiKey"] = getSetting("apiKey");
-
-    #if ENABLE_DOMOTICZ
-
-        root["dczVisible"] = 1;
-        root["dczTopicIn"] = getSetting("dczTopicIn", DOMOTICZ_IN_TOPIC);
-        root["dczTopicOut"] = getSetting("dczTopicOut", DOMOTICZ_OUT_TOPIC);
-
-        root["dczIdxTemp"] = getSetting("dczIdxTemp").toInt();
-        root["dczIdxHum"] = getSetting("dczIdxHum").toInt();
-        root["dczIdxNoise"] = getSetting("dczIdxNoise").toInt();
-        root["dczIdxMovement"] = getSetting("dczIdxMovement").toInt();
-        root["dczIdxLight"] = getSetting("dczIdxLight").toInt();
-        root["dczIdxDust"] = getSetting("dczIdxDust").toInt();
-
+    bool changePassword = false;
+    #if FORCE_CHANGE_PASS == 1
+        String adminPass = getSetting("adminPass", ADMIN_PASS);
+        if (adminPass.equals(ADMIN_PASS)) changePassword = true;
     #endif
 
-    root["sensorTemp"] = getTemperature();
-    root["sensorHum"] = getHumidity();
-    root["sensorLight"] = getLight();
-    root["sensorNoise"] = getNoise();
-    root["sensorDust"] = getDust();
-    root["sensorMovement"] = getMovement();
-    root["sensorEvery"] = getSetting("sensorEvery", SENSOR_EVERY).toInt();
-    root["clapEnabled"] = getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1;
+    if (changePassword) {
 
-    root["maxNetworks"] = WIFI_MAX_NETWORKS;
-    JsonArray& wifi = root.createNestedArray("wifi");
-    for (byte i=0; i<WIFI_MAX_NETWORKS; i++) {
-        if (getSetting("ssid" + String(i)).length() == 0) break;
-        JsonObject& network = wifi.createNestedObject();
-        network["ssid"] = getSetting("ssid" + String(i));
-        network["pass"] = getSetting("pass" + String(i));
-        network["ip"] = getSetting("ip" + String(i));
-        network["gw"] = getSetting("gw" + String(i));
-        network["mask"] = getSetting("mask" + String(i));
-        network["dns"] = getSetting("dns" + String(i));
+        root["webMode"] = WEB_MODE_PASSWORD;
+
+    } else {
+
+        root["webMode"] = WEB_MODE_NORMAL;
+
+        root["app"] = APP_NAME;
+        root["version"] = APP_VERSION;
+        root["buildDate"] = __DATE__;
+        root["buildTime"] = __TIME__;
+
+        root["manufacturer"] = String(MANUFACTURER);
+        root["chipid"] = chipid;
+        root["mac"] = WiFi.macAddress();
+        root["device"] = String(DEVICE);
+        root["hostname"] = getSetting("hostname", HOSTNAME);
+        root["network"] = getNetwork();
+        root["deviceip"] = getIP();
+
+        root["mqttStatus"] = mqttConnected();
+        root["mqttServer"] = getSetting("mqttServer", MQTT_SERVER);
+        root["mqttPort"] = getSetting("mqttPort", MQTT_PORT);
+        root["mqttUser"] = getSetting("mqttUser");
+        root["mqttPassword"] = getSetting("mqttPassword");
+
+        root["mqttTopic"] = getSetting("mqttTopic", MQTT_TOPIC);
+        root["mqttTopicLight"] = getSetting("mqttTopicLight", MQTT_LIGHT_TOPIC);
+        root["mqttTopicTemp"] = getSetting("mqttTopicTemp", MQTT_TEMPERATURE_TOPIC);
+        root["mqttTopicHum"] = getSetting("mqttTopicHum", MQTT_HUMIDITY_TOPIC);
+        root["mqttTopicNoise"] = getSetting("mqttTopicNoise", MQTT_NOISE_TOPIC);
+        root["mqttTopicDust"] = getSetting("mqttTopicDust", MQTT_DUST_TOPIC);
+        root["mqttTopicMovement"] = getSetting("mqttTopicMovement", MQTT_MOVE_TOPIC);
+        root["mqttTopicClap"] = getSetting("mqttTopicClap", MQTT_CLAP_TOPIC);
+
+        root["apiVisible"] = 0;
+        root["apiEnabled"] = getSetting("apiEnabled").toInt() == 1;
+        root["apiKey"] = getSetting("apiKey");
+
+        #if ENABLE_DOMOTICZ
+
+            root["dczVisible"] = 1;
+            root["dczTopicIn"] = getSetting("dczTopicIn", DOMOTICZ_IN_TOPIC);
+            root["dczTopicOut"] = getSetting("dczTopicOut", DOMOTICZ_OUT_TOPIC);
+
+            root["dczIdxTemp"] = getSetting("dczIdxTemp").toInt();
+            root["dczIdxHum"] = getSetting("dczIdxHum").toInt();
+            root["dczIdxNoise"] = getSetting("dczIdxNoise").toInt();
+            root["dczIdxMovement"] = getSetting("dczIdxMovement").toInt();
+            root["dczIdxLight"] = getSetting("dczIdxLight").toInt();
+            root["dczIdxDust"] = getSetting("dczIdxDust").toInt();
+
+        #endif
+
+        root["sensorTemp"] = getTemperature();
+        root["sensorHum"] = getHumidity();
+        root["sensorLight"] = getLight();
+        root["sensorNoise"] = getNoise();
+        root["sensorDust"] = getDust();
+        root["sensorMove"] = getMovement();
+        root["sensorEvery"] = getSetting("sensorEvery", SENSOR_EVERY).toInt();
+        root["clapEnabled"] = getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1;
+
+        root["maxNetworks"] = WIFI_MAX_NETWORKS;
+        JsonArray& wifi = root.createNestedArray("wifi");
+        for (byte i=0; i<WIFI_MAX_NETWORKS; i++) {
+            if (getSetting("ssid" + String(i)).length() == 0) break;
+            JsonObject& network = wifi.createNestedObject();
+            network["ssid"] = getSetting("ssid" + String(i));
+            network["pass"] = getSetting("pass" + String(i));
+            network["ip"] = getSetting("ip" + String(i));
+            network["gw"] = getSetting("gw" + String(i));
+            network["mask"] = getSetting("mask" + String(i));
+            network["dns"] = getSetting("dns" + String(i));
+        }
+
     }
 
     String output;
@@ -302,7 +345,7 @@ bool _wsAuth(AsyncWebSocketClient * client) {
     }
 
     if (index == WS_BUFFER_SIZE) {
-        DEBUG_MSG("[WEBSOCKET] Validation check failed\n");
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] Validation check failed\n"));
         ws.text(client->id(), "{\"message\": \"Session expired, please reload page...\"}");
         return false;
     }
@@ -322,23 +365,21 @@ void _wsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventTy
 
     if (type == WS_EVT_CONNECT) {
         IPAddress ip = client->remoteIP();
-        DEBUG_MSG("[WEBSOCKET] #%u connected, ip: %d.%d.%d.%d, url: %s\n", client->id(), ip[0], ip[1], ip[2], ip[3], server->url());
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] #%u connected, ip: %d.%d.%d.%d, url: %s\n"), client->id(), ip[0], ip[1], ip[2], ip[3], server->url());
         _wsStart(client->id());
     } else if(type == WS_EVT_DISCONNECT) {
-        DEBUG_MSG("[WEBSOCKET] #%u disconnected\n", client->id());
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] #%u disconnected\n"), client->id());
     } else if(type == WS_EVT_ERROR) {
-        DEBUG_MSG("[WEBSOCKET] #%u error(%u): %s\n", client->id(), *((uint16_t*)arg), (char*)data);
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] #%u error(%u): %s\n"), client->id(), *((uint16_t*)arg), (char*)data);
     } else if(type == WS_EVT_PONG) {
-        DEBUG_MSG("[WEBSOCKET] #%u pong(%u): %s\n", client->id(), len, len ? (char*) data : "");
+        DEBUG_MSG_P(PSTR("[WEBSOCKET] #%u pong(%u): %s\n"), client->id(), len, len ? (char*) data : "");
     } else if(type == WS_EVT_DATA) {
 
         AwsFrameInfo * info = (AwsFrameInfo*)arg;
 
         // First packet
         if (info->index == 0) {
-            //Serial.printf("Before malloc: %d\n", ESP.getFreeHeap());
             message = (uint8_t*) malloc(info->len);
-            //Serial.printf("After malloc: %d\n", ESP.getFreeHeap());
         }
 
         // Store data
@@ -347,9 +388,7 @@ void _wsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventTy
         // Last packet
         if (info->index + len == info->len) {
             _wsParse(client->id(), message, info->len);
-            //Serial.printf("Before free: %d\n", ESP.getFreeHeap());
             free(message);
-            //Serial.printf("After free: %d\n", ESP.getFreeHeap());
         }
 
     }
@@ -386,7 +425,7 @@ void _onAuth(AsyncWebServerRequest *request) {
         if (now - _ticket[index].timestamp > WS_TIMEOUT) break;
     }
     if (index == WS_BUFFER_SIZE) {
-        request->send(423);
+        request->send(429);
     } else {
         _ticket[index].ip = ip;
         _ticket[index].timestamp = now;
@@ -399,13 +438,17 @@ void _onHome(AsyncWebServerRequest *request) {
 
     _logRequest(request);
 
-    if (!_authenticate(request)) return request->requestAuthentication();
+    if (request->header("If-Modified-Since").equals(_last_modified)) {
 
-    String password = getSetting("adminPass", ADMIN_PASS);
-    if (password.equals(ADMIN_PASS)) {
-        request->send(SPIFFS, "/password.html");
+        request->send(304);
+
     } else {
-        request->send(SPIFFS, "/index.html");
+
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", index_html_gz, index_html_gz_len);
+        response->addHeader("Content-Encoding", "gzip");
+        response->addHeader("Last-Modified", _last_modified);
+        request->send(response);
+
     }
 
 }
@@ -459,32 +502,36 @@ void _onSensors(AsyncWebServerRequest *request) {
 
 void webSetup() {
 
+    // Create server
+    _server = new AsyncWebServer(getSetting("webPort", WEBSERVER_PORT).toInt());
+
     // Setup websocket
     ws.onEvent(_wsEvent);
     mqttRegister(wsMQTTCallback);
 
+    // Cache the Last-Modifier header value
+    sprintf(_last_modified, "%s %s GMT", __DATE__, __TIME__);
+
     // Setup webserver
-    server.addHandler(&ws);
+    _server->addHandler(&ws);
+
+    // Rewrites
+    _server->rewrite("/", "/index.html");
 
     // Serve home (basic authentication protection)
-    server.on("/", HTTP_GET, _onHome);
-    server.on("/index.html", HTTP_GET, _onHome);
-    server.on("/auth", HTTP_GET, _onAuth);
+    _server->on("/index.html", HTTP_GET, _onHome);
+    _server->on("/auth", HTTP_GET, _onAuth);
 
     // TODO: API entry points
-    server.on("/api/sensors", HTTP_GET, _onSensors);
-
-    // Serve static files
-    char lastModified[50];
-    sprintf(lastModified, "%s %s GMT", __DATE__, __TIME__);
-    server.serveStatic("/", SPIFFS, "/").setLastModified(lastModified);
+    _server->on("/api/sensors", HTTP_GET, _onSensors);
 
     // 404
-    server.onNotFound([](AsyncWebServerRequest *request){
+    _server->onNotFound([](AsyncWebServerRequest *request){
         request->send(404);
     });
 
     // Run server
-    server.begin();
+    _server->begin();
+    DEBUG_MSG_P(PSTR("[WEBSERVER] Webserver running on port %d\n"), getSetting("webPort", WEBSERVER_PORT).toInt());
 
 }

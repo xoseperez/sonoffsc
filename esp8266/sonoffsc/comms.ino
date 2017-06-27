@@ -118,7 +118,7 @@ bool commsSet(char * key, long value) {
         movement = value;
         mqttSend(getSetting("mqttTopicMovement", MQTT_MOVE_TOPIC).c_str(), movement ? "1" : "0");
         domoticzSend("dczIdxMovement", movement);
-        sprintf(buffer, "{\"sensorMovement\": %d}", movement ? 1 : 0);
+        sprintf(buffer, "{\"sensorMove\": %d}", movement ? 1 : 0);
         wsSend(buffer);
         movement ? commsLightOn() : commsLightOff();
         return true;

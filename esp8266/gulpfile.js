@@ -2,7 +2,7 @@
 
 ESP8266 file system builder
 
-Copyright (C) 2016 by Xose PĆ©rez <xose dot perez at gmail dot com>
+Copyright (C) 2016 by Xose Pérez <xose dot perez at gmail dot com>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // File system builder
 // -----------------------------------------------------------------------------
 
+const fs = require('fs');
 const gulp = require('gulp');
 const plumber = require('gulp-plumber');
 const htmlmin = require('gulp-htmlmin');
@@ -33,32 +34,59 @@ const del = require('del');
 const useref = require('gulp-useref');
 const gulpif = require('gulp-if');
 const inline = require('gulp-inline');
+const inlineImages = require('gulp-css-base64');
+const favicon = require('gulp-base64-favicon');
 
-const destination = 'sonoffsc/data/';
+const dataFolder = 'sonoffsc/static/';
 
-/* Clean destination folder */
 gulp.task('clean', function() {
-    del([ destination + '*']);
+    del([ dataFolder + '*']);
     return true;
 });
 
-/* Copy static files */
-gulp.task('files', function() {
+gulp.task('files', ['clean'], function() {
     return gulp.src([
             'html/**/*.{jpg,jpeg,png,ico,gif}',
             'html/fsversion'
         ])
-        .pipe(gulp.dest(destination));
+        .pipe(gulp.dest(dataFolder));
 });
 
+gulp.task('buildfs_embeded', ['buildfs_inline'], function() {
 
-/* Process HTML, CSS, JS  --- INLINE --- */
-gulp.task('inline', function() {
+    var source = dataFolder + 'index.html.gz';
+    var destination = dataFolder + 'index.html.gz.h';
+
+    var wstream = fs.createWriteStream(destination);
+    wstream.on('error', function (err) {
+        console.log(err);
+    });
+
+    var data = fs.readFileSync(source);
+
+    wstream.write('#define index_html_gz_len ' + data.length + '\n');
+    wstream.write('const uint8_t index_html_gz[] PROGMEM = {')
+
+    for (i=0; i<data.length; i++) {
+        if (i % 1000 == 0) wstream.write("\n");
+        wstream.write('0x' + ('00' + data[i].toString(16)).slice(-2));
+        if (i<data.length-1) wstream.write(',');
+    }
+
+    wstream.write('\n};')
+    wstream.end();
+
+    del([source]);
+
+});
+
+gulp.task('buildfs_inline', ['clean'], function() {
     return gulp.src('html/*.html')
+        .pipe(favicon())
         .pipe(inline({
             base: 'html/',
             js: uglify,
-            css: cleancss,
+            css: [cleancss, inlineImages],
             disabledTypes: ['svg', 'img']
         }))
         .pipe(htmlmin({
@@ -68,27 +96,7 @@ gulp.task('inline', function() {
             minifyJS: true
         }))
         .pipe(gzip())
-        .pipe(gulp.dest(destination));
+        .pipe(gulp.dest(dataFolder));
 })
 
-/* Process HTML, CSS, JS */
-gulp.task('html', function() {
-    return gulp.src('html/*.html')
-        .pipe(useref())
-        .pipe(plumber())
-        .pipe(gulpif('*.css', cleancss()))
-        .pipe(gulpif('*.js', uglify()))
-        .pipe(gulpif('*.html', htmlmin({
-            collapseWhitespace: true,
-            removeComments: true,
-            minifyCSS: true,
-            minifyJS: true
-        })))
-        .pipe(gzip())
-        .pipe(gulp.dest(destination));
-});
-
-/* Build file system */
-gulp.task('buildfs_split', ['clean', 'files', 'html']);
-gulp.task('buildfs_inline', ['clean', 'files', 'inline']);
-gulp.task('default', ['buildfs_split']);
+gulp.task('default', ['buildfs_embeded']);

@@ -9,6 +9,30 @@
 #define HEARTBEAT_INTERVAL      300000
 
 // -----------------------------------------------------------------------------
+// DEBUG
+// -----------------------------------------------------------------------------
+
+// Only for debugging, won't work while both microcontrollers working together
+//#define DEBUG_PORT                  Serial
+
+// Uncomment and configure these lines to enable remote debug via udpDebug
+// To receive the message son the destination computer use nc (nc -ul 8115)
+//#define DEBUG_UDP_IP            IPAddress(192, 168, 1, 100)
+//#define DEBUG_UDP_PORT          8115
+
+#define DEBUG_MESSAGE_MAX_LENGTH    80
+
+#if defined(DEBUG_PORT) | defined(DEBUG_UDP_IP)
+    #define DEBUG_MSG(...) debugSend(__VA_ARGS__)
+    #define DEBUG_MSG_P(...) debugSend_P(__VA_ARGS__)
+#endif
+
+#ifndef DEBUG_MSG
+    #define DEBUG_MSG(...)
+    #define DEBUG_MSG_P(...)
+#endif
+
+// -----------------------------------------------------------------------------
 // WIFI & WEB
 // -----------------------------------------------------------------------------
 
@@ -18,7 +42,12 @@
 #define HTTP_USERNAME           "admin"
 #define WS_BUFFER_SIZE          5
 #define WS_TIMEOUT              1800000
+#define WEBSERVER_PORT          80
 #define DNS_PORT                53
+#define FORCE_CHANGE_PASS       1
+
+#define WEB_MODE_NORMAL         0
+#define WEB_MODE_PASSWORD       1
 
 // -----------------------------------------------------------------------------
 // OTA
@@ -37,6 +66,8 @@
 // MQTT
 // -----------------------------------------------------------------------------
 
+#define MQTT_USE_ASYNC          1
+
 #define MQTT_SERVER             "192.168.1.100"
 #define MQTT_PORT               1883
 #define MQTT_RETAIN             true
@@ -51,22 +82,25 @@
 
 #define MQTT_TOPIC              "/test/sonoffsc"
 
-#define MQTT_IP_TOPIC           "/ip"
-#define MQTT_VERSION_TOPIC      "/version"
-#define MQTT_HEARTBEAT_TOPIC    "/heartbeat"
+#define MQTT_TOPIC_STATUS       "status"
+#define MQTT_TOPIC_IP           "ip"
+#define MQTT_VERSION_TOPIC      "version"
+#define MQTT_HEARTBEAT_TOPIC    "heartbeat"
 
-#define MQTT_MODE_TOPIC         "/mode"
-#define MQTT_INTERVAL_TOPIC     "/interval"
+#define MQTT_MODE_TOPIC         "mode"
+#define MQTT_INTERVAL_TOPIC     "interval"
 
+#define MQTT_TEMPERATURE_TOPIC  "temperature"
+#define MQTT_HUMIDITY_TOPIC     "humidity"
+#define MQTT_NOISE_TOPIC        "noise"
+#define MQTT_CLAP_TOPIC         "clap"
+#define MQTT_DUST_TOPIC         "dust"
+#define MQTT_LIGHT_TOPIC        "light"
+#define MQTT_RGB_TOPIC			"rgb"
+#define MQTT_MOVE_TOPIC			"movement"
 
-#define MQTT_TEMPERATURE_TOPIC  "/temperature"
-#define MQTT_HUMIDITY_TOPIC     "/humidity"
-#define MQTT_NOISE_TOPIC        "/noise"
-#define MQTT_CLAP_TOPIC         "/clap"
-#define MQTT_DUST_TOPIC         "/dust"
-#define MQTT_LIGHT_TOPIC        "/light"
-#define MQTT_RGB_TOPIC			"/rgb"
-#define MQTT_MOVE_TOPIC			"/movement"
+#define MQTT_TOPIC_ACTION       "action"
+#define MQTT_ACTION_RESET       "reset"
 
 // -----------------------------------------------------------------------------
 // API
