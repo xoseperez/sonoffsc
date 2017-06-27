@@ -25,14 +25,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 const fs = require('fs');
 const gulp = require('gulp');
-const plumber = require('gulp-plumber');
 const htmlmin = require('gulp-htmlmin');
 const cleancss = require('gulp-clean-css');
 const uglify = require('gulp-uglify');
 const gzip = require('gulp-gzip');
 const del = require('del');
-const useref = require('gulp-useref');
-const gulpif = require('gulp-if');
 const inline = require('gulp-inline');
 const inlineImages = require('gulp-css-base64');
 const favicon = require('gulp-base64-favicon');
