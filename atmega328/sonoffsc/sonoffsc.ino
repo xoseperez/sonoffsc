@@ -211,7 +211,7 @@ int getLight() {
     return map(analogRead(LDR_PIN), 0, ADC_COUNTS, 100, 0);
 }
 
-// 0.5V/0.1mg/m3
+// 0.5V ==> 100ug/m3
 float getDust() {
 
     digitalWrite(SHARP_LED_PIN, LOW);
@@ -224,7 +224,7 @@ float getDust() {
 	//delayMicroseconds(SHARP_SLEEP_TIME);
 
     // mg/m3
-	float dust = 0.17 * reading * (5.0 / 1024.0) - 0.1;
+	float dust = 170.0 * reading * (5.0 / 1024.0) - 100.0;
     if (dust < 0) dust = 0;
     return dust;
 
@@ -238,7 +238,7 @@ void getDustDefer(bool push = false) {
         fanTicker.stop();
         dust = getDust();
         fanStatus(false);
-        if (dustPush) link.send_P(at_dust, 100 * dust, false);
+        if (dustPush) link.send_P(at_dust, dust, false);
     });
     fanTicker.start();
 }
@@ -500,7 +500,7 @@ bool linkGet(char * key) {
         if (every == 0) {
             getDustDefer(true);
         } else {
-            link.send(key, 100 * dust, false);
+            link.send(key, dust, false);
         }
         return true;
     }
