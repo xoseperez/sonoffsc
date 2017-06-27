@@ -92,7 +92,7 @@ void hardwareLoop() {
     if (mqttConnected()) {
         if ((millis() - last_heartbeat > HEARTBEAT_INTERVAL) || (last_heartbeat == 0)) {
             last_heartbeat = millis();
-            mqttSend(MQTT_HEARTBEAT_TOPIC, "1");
+            mqttSend(MQTT_TOPIC_HEARTBEAT, "1");
             DEBUG_MSG("[BEAT] Free heap: %d\n", ESP.getFreeHeap());
         }
     }
@@ -147,8 +147,7 @@ void setup() {
     webSetup();
     commsSetup();
     fauxmoSetup();
-
-	mqttRegister(mqttCallback);
+    lightsSetup();
 
 }
 

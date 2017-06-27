@@ -277,13 +277,13 @@ void _wsStart(uint32_t client_id) {
         root["mqttPassword"] = getSetting("mqttPassword");
 
         root["mqttTopic"] = getSetting("mqttTopic", MQTT_TOPIC);
-        root["mqttTopicLight"] = getSetting("mqttTopicLight", MQTT_LIGHT_TOPIC);
-        root["mqttTopicTemp"] = getSetting("mqttTopicTemp", MQTT_TEMPERATURE_TOPIC);
-        root["mqttTopicHum"] = getSetting("mqttTopicHum", MQTT_HUMIDITY_TOPIC);
-        root["mqttTopicNoise"] = getSetting("mqttTopicNoise", MQTT_NOISE_TOPIC);
-        root["mqttTopicDust"] = getSetting("mqttTopicDust", MQTT_DUST_TOPIC);
-        root["mqttTopicMovement"] = getSetting("mqttTopicMovement", MQTT_MOVE_TOPIC);
-        root["mqttTopicClap"] = getSetting("mqttTopicClap", MQTT_CLAP_TOPIC);
+        root["mqttTopicLight"] = getSetting("mqttTopicLight", MQTT_TOPIC_LIGHT);
+        root["mqttTopicTemp"] = getSetting("mqttTopicTemp", MQTT_TOPIC_TEMPERATURE);
+        root["mqttTopicHum"] = getSetting("mqttTopicHum", MQTT_TOPIC_HUMIDITY);
+        root["mqttTopicNoise"] = getSetting("mqttTopicNoise", MQTT_TOPIC_NOISE);
+        root["mqttTopicDust"] = getSetting("mqttTopicDust", MQTT_TOPIC_DUST);
+        root["mqttTopicMovement"] = getSetting("mqttTopicMovement", MQTT_TOPIC_MOVE);
+        root["mqttTopicClap"] = getSetting("mqttTopicClap", MQTT_TOPIC_CLAP);
 
         root["apiVisible"] = 0;
         root["apiEnabled"] = getSetting("apiEnabled").toInt() == 1;

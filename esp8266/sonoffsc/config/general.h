@@ -84,23 +84,32 @@
 
 #define MQTT_TOPIC_STATUS       "status"
 #define MQTT_TOPIC_IP           "ip"
-#define MQTT_VERSION_TOPIC      "version"
-#define MQTT_HEARTBEAT_TOPIC    "heartbeat"
+#define MQTT_TOPIC_VERSION      "version"
+#define MQTT_TOPIC_HEARTBEAT    "heartbeat"
 
-#define MQTT_MODE_TOPIC         "mode"
-#define MQTT_INTERVAL_TOPIC     "interval"
+#define MQTT_TOPIC_MODE         "mode"
+#define MQTT_TOPIC_INTERVAL     "interval"
 
-#define MQTT_TEMPERATURE_TOPIC  "temperature"
-#define MQTT_HUMIDITY_TOPIC     "humidity"
-#define MQTT_NOISE_TOPIC        "noise"
-#define MQTT_CLAP_TOPIC         "clap"
-#define MQTT_DUST_TOPIC         "dust"
-#define MQTT_LIGHT_TOPIC        "light"
-#define MQTT_RGB_TOPIC			"rgb"
-#define MQTT_MOVE_TOPIC			"movement"
+#define MQTT_TOPIC_TEMPERATURE  "temperature"
+#define MQTT_TOPIC_HUMIDITY     "humidity"
+#define MQTT_TOPIC_NOISE        "noise"
+#define MQTT_TOPIC_CLAP         "clap"
+#define MQTT_TOPIC_DUST         "dust"
+#define MQTT_TOPIC_LIGHT        "light"
+#define MQTT_TOPIC_RGB			"rgb"
+#define MQTT_TOPIC_EFFECT		"effect"
+#define MQTT_TOPIC_MOVE			"movement"
 
 #define MQTT_TOPIC_ACTION       "action"
 #define MQTT_ACTION_RESET       "reset"
+
+// -----------------------------------------------------------------------------
+// BEHAVIOUR
+// -----------------------------------------------------------------------------
+
+#define LOCAL_NOTIFICATION      1
+#define NOTIFICATION_ON_EFFECT  47
+#define NOTIFICATION_OFF_EFFECT 48
 
 // -----------------------------------------------------------------------------
 // API
