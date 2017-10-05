@@ -2,7 +2,7 @@
 
 Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
 
-**Current Release Version is 1.0.0**, read the [changelog](CHANGELOG.md).
+**Current Release Version is 1.1.0**, read the [changelog](CHANGELOG.md).
 
 ## Features
 
@@ -24,10 +24,12 @@ Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
     * Web-based configuration
     * Websockets-based communication between the device and the browser
     * Web server code cleaned, merged and embedded into firmware for fastest access
+* **NTP** synchronisation
 * **Over-The-Air** (OTA) updates (only for the ESP8266)
+* **Remote OTA** updates using the [NoFuss library](https://bitbucket.org/xoseperez/nofuss) (only for the ESP8266)
 * [**Domoticz**](https://domoticz.com/) integration via MQTT
 * Enable/disable clap mode from **Alexa**
-* Debug messages via UDP
+* **Debug** messages via UDP & Telnet
 
 ## Documentation
 
@@ -36,7 +38,9 @@ Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
 Both projects (for the atmega328p and the esp8266) are ready to be built with [PlatformIO](http://platformio.org/).
 If you do not use PlatformIO check the platformio.ini files for dependencies (in the "lib_deps" parameter).
 
-Know more here: [http://tinkerman.cat/sonoff-sc-with-mqtt-and-domoticz-support](http://tinkerman.cat/sonoff-sc-with-mqtt-and-domoticz-support)
+Know more here:
+* [http://tinkerman.cat/sonoff-sc-with-mqtt-and-domoticz-support](http://tinkerman.cat/sonoff-sc-with-mqtt-and-domoticz-support)
+* [http://tinkerman.cat/itead-studio-sonoff-sc-revisited/](http://tinkerman.cat/itead-studio-sonoff-sc-revisited/)
 
 ## License
 
