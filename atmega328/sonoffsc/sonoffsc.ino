@@ -603,8 +603,8 @@ bool linkSet(char * key, long value) {
     }
 
     if (strcmp_P(key, at_every) == 0) {
-        if (0 <= value && value <= 300) {
-            every = 1000 * value;
+        if (5 <= value && value <= 300) {
+            every = 1000L * value;
             return true;
         }
     }
