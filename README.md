@@ -33,6 +33,9 @@ Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
 
 *TODO*
 
+Both projects (for the atmega328p and the esp8266) are ready to be built with [PlatformIO](http://platformio.org/).
+If you do not use PlatformIO check the platformio.ini files for dependencies (in the "lib_deps" parameter).
+
 Know more here: [http://tinkerman.cat/sonoff-sc-with-mqtt-and-domoticz-support](http://tinkerman.cat/sonoff-sc-with-mqtt-and-domoticz-support)
 
 ## License

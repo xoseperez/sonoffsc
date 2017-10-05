@@ -19,31 +19,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <Arduino.h>
+#include <EEPROM.h>
 #include "config/all.h"
-
-// -----------------------------------------------------------------------------
-// PROTOTYPES
-// -----------------------------------------------------------------------------
-
-#include <ESPAsyncWebServer.h>
-#include <AsyncMqttClient.h>
-
-void mqttRegister(void (*callback)(unsigned int, const char *, const char *));
-template<typename T> bool setSetting(const String& key, T value);
-template<typename T> String getSetting(const String& key, T defaultValue);
-template<typename T> void mqttSend(const char * topic, T message);
-template<typename T> void domoticzSend(unsigned int idx, T value);
-template<typename T> void domoticzSend(const char * setting, T value);
 
 // -----------------------------------------------------------------------------
 // METHODS
 // -----------------------------------------------------------------------------
-
-String getIdentifier() {
-    char identifier[20];
-    sprintf(identifier, "%s_%06X", DEVICE, ESP.getChipId());
-    return String(identifier);
-}
 
 bool ledStatus(bool status) {
     digitalWrite(LED_PIN, status ? LOW : HIGH);
@@ -78,22 +59,44 @@ void showStatus() {
 }
 
 void hardwareSetup() {
-    Serial.begin(SERIAL_BAUDRATE);
+
+    EEPROM.begin(EEPROM_SIZE);
+
+    #if DEBUG_SERIAL_SUPPORT
+        DEBUG_PORT.begin(SERIAL_BAUDRATE);
+        #if DEBUG_ESP_WIFI
+            DEBUG_PORT.setDebugOutput(true);
+        #endif
+    #elif defined(SERIAL_BAUDRATE)
+        Serial.begin(SERIAL_BAUDRATE);
+    #endif
+
+    #if SPIFFS_SUPPORT
+        SPIFFS.begin();
+    #endif
+
     pinMode(LED_PIN, OUTPUT);
-    SPIFFS.begin();
+
 }
 
 void hardwareLoop() {
 
     showStatus();
 
+    // System check
+    static bool checked = false;
+    if (!checked && (millis() > CRASH_SAFE_TIME)) {
+        // Check system as stable
+        systemCheck(true);
+        checked = true;
+    }
+
     // Heartbeat
     static unsigned long last_heartbeat = 0;
     if (mqttConnected()) {
         if ((millis() - last_heartbeat > HEARTBEAT_INTERVAL) || (last_heartbeat == 0)) {
             last_heartbeat = millis();
-            mqttSend(MQTT_TOPIC_HEARTBEAT, "1");
-            DEBUG_MSG("[BEAT] Free heap: %d\n", ESP.getFreeHeap());
+            heartbeat();
         }
     }
 
@@ -103,62 +106,189 @@ void hardwareLoop() {
 // BOOTING
 // -----------------------------------------------------------------------------
 
+unsigned int sectors(size_t size) {
+    return (int) (size + SPI_FLASH_SEC_SIZE - 1) / SPI_FLASH_SEC_SIZE;
+}
+
 void welcome() {
 
-    delay(2000);
-    DEBUG_MSG("%s %s\n", (char *) APP_NAME, (char *) APP_VERSION);
-    DEBUG_MSG("%s\n%s\n\n", (char *) APP_AUTHOR, (char *) APP_WEBSITE);
-    //DEBUG_MSG("Device: %s\n", (char *) getIdentifier().c_str());
-    DEBUG_MSG("ChipID: %06X\n", ESP.getChipId());
-    DEBUG_MSG("CPU frequency: %d MHz\n", ESP.getCpuFreqMHz());
-    DEBUG_MSG("Last reset reason: %s\n", (char *) ESP.getResetReason().c_str());
-    DEBUG_MSG("Memory size: %d bytes\n", ESP.getFlashChipSize());
-    DEBUG_MSG("Free heap: %d bytes\n", ESP.getFreeHeap());
-    DEBUG_MSG("Firmware size: %d bytes\n", ESP.getSketchSize());
-    DEBUG_MSG("Free firmware space: %d bytes\n", ESP.getFreeSketchSpace());
-    FSInfo fs_info;
-    if (SPIFFS.info(fs_info)) {
-        DEBUG_MSG("File system total size: %d bytes\n", fs_info.totalBytes);
-        DEBUG_MSG("            used size : %d bytes\n", fs_info.usedBytes);
-        DEBUG_MSG("            block size: %d bytes\n", fs_info.blockSize);
-        DEBUG_MSG("            page size : %d bytes\n", fs_info.pageSize);
-        DEBUG_MSG("            max files : %d\n", fs_info.maxOpenFiles);
-        DEBUG_MSG("            max length: %d\n", fs_info.maxPathLength);
+    DEBUG_MSG_P(PSTR("\n\n"));
+    DEBUG_MSG_P(PSTR("[INIT] %s %s\n"), (char *) APP_NAME, (char *) APP_VERSION);
+    DEBUG_MSG_P(PSTR("[INIT] %s\n"), (char *) APP_AUTHOR);
+    DEBUG_MSG_P(PSTR("[INIT] %s\n\n"), (char *) APP_WEBSITE);
+    DEBUG_MSG_P(PSTR("[INIT] CPU chip ID: 0x%06X\n"), ESP.getChipId());
+    DEBUG_MSG_P(PSTR("[INIT] CPU frequency: %d MHz\n"), ESP.getCpuFreqMHz());
+    DEBUG_MSG_P(PSTR("[INIT] SDK version: %s\n"), ESP.getSdkVersion());
+    DEBUG_MSG_P(PSTR("[INIT] Core version: %s\n"), ESP.getCoreVersion().c_str());
+    DEBUG_MSG_P(PSTR("\n"));
+
+    // -------------------------------------------------------------------------
+
+    FlashMode_t mode = ESP.getFlashChipMode();
+    DEBUG_MSG_P(PSTR("[INIT] Flash chip ID: 0x%06X\n"), ESP.getFlashChipId());
+    DEBUG_MSG_P(PSTR("[INIT] Flash speed: %u Hz\n"), ESP.getFlashChipSpeed());
+    DEBUG_MSG_P(PSTR("[INIT] Flash mode: %s\n"), mode == FM_QIO ? "QIO" : mode == FM_QOUT ? "QOUT" : mode == FM_DIO ? "DIO" : mode == FM_DOUT ? "DOUT" : "UNKNOWN");
+    DEBUG_MSG_P(PSTR("\n"));
+    DEBUG_MSG_P(PSTR("[INIT] Flash sector size: %8u bytes\n"), SPI_FLASH_SEC_SIZE);
+    DEBUG_MSG_P(PSTR("[INIT] Flash size (CHIP): %8u bytes\n"), ESP.getFlashChipRealSize());
+    DEBUG_MSG_P(PSTR("[INIT] Flash size (SDK):  %8u bytes / %4d sectors\n"), ESP.getFlashChipSize(), sectors(ESP.getFlashChipSize()));
+    DEBUG_MSG_P(PSTR("[INIT] Firmware size:     %8u bytes / %4d sectors\n"), ESP.getSketchSize(), sectors(ESP.getSketchSize()));
+    DEBUG_MSG_P(PSTR("[INIT] OTA size:          %8u bytes / %4d sectors\n"), ESP.getFreeSketchSpace(), sectors(ESP.getFreeSketchSpace()));
+    #if SPIFFS_SUPPORT
+        FSInfo fs_info;
+        bool fs = SPIFFS.info(fs_info);
+        if (fs) {
+            DEBUG_MSG_P(PSTR("[INIT] SPIFFS size:       %8u bytes / %4d sectors\n"), fs_info.totalBytes, sectors(fs_info.totalBytes));
+        }
+    #else
+        DEBUG_MSG_P(PSTR("[INIT] SPIFFS size:       %8u bytes / %4d sectors\n"), 0, 0);
+    #endif
+    DEBUG_MSG_P(PSTR("[INIT] EEPROM size:       %8u bytes / %4d sectors\n"), settingsMaxSize(), sectors(settingsMaxSize()));
+    DEBUG_MSG_P(PSTR("[INIT] Empty space:       %8u bytes /    4 sectors\n"), 4 * SPI_FLASH_SEC_SIZE);
+    DEBUG_MSG_P(PSTR("\n"));
+
+    // -------------------------------------------------------------------------
+
+    #if SPIFFS_SUPPORT
+        if (fs) {
+            DEBUG_MSG_P(PSTR("[INIT] SPIFFS total size: %8u bytes\n"), fs_info.totalBytes);
+            DEBUG_MSG_P(PSTR("[INIT]        used size:  %8u bytes\n"), fs_info.usedBytes);
+            DEBUG_MSG_P(PSTR("[INIT]        block size: %8u bytes\n"), fs_info.blockSize);
+            DEBUG_MSG_P(PSTR("[INIT]        page size:  %8u bytes\n"), fs_info.pageSize);
+            DEBUG_MSG_P(PSTR("[INIT]        max files:  %8u\n"), fs_info.maxOpenFiles);
+            DEBUG_MSG_P(PSTR("[INIT]        max length: %8u\n"), fs_info.maxPathLength);
+        } else {
+            DEBUG_MSG_P(PSTR("[INIT] No SPIFFS partition\n"));
+        }
+        DEBUG_MSG_P(PSTR("\n"));
+    #endif
+
+    // -------------------------------------------------------------------------
+
+    DEBUG_MSG_P(PSTR("[INIT] MANUFACTURER: %s\n"), MANUFACTURER);
+    DEBUG_MSG_P(PSTR("[INIT] DEVICE: %s\n"), DEVICE_NAME);
+    DEBUG_MSG_P(PSTR("[INIT] SUPPORT:"));
+
+    #if ALEXA_SUPPORT
+        DEBUG_MSG_P(PSTR(" ALEXA"));
+    #endif
+    #if DEBUG_SERIAL_SUPPORT
+        DEBUG_MSG_P(PSTR(" DEBUG_SERIAL"));
+    #endif
+    #if DEBUG_UDP_SUPPORT
+        DEBUG_MSG_P(PSTR(" DEBUG_UDP"));
+    #endif
+    #if DOMOTICZ_SUPPORT
+        DEBUG_MSG_P(PSTR(" DOMOTICZ"));
+    #endif
+    #if MDNS_SUPPORT
+        DEBUG_MSG_P(PSTR(" MDNS"));
+    #endif
+    #if NOFUSS_SUPPORT
+        DEBUG_MSG_P(PSTR(" NOFUSS"));
+    #endif
+    #if NTP_SUPPORT
+        DEBUG_MSG_P(PSTR(" NTP"));
+    #endif
+    #if SPIFFS_SUPPORT
+        DEBUG_MSG_P(PSTR(" SPIFFS"));
+    #endif
+    #if TERMINAL_SUPPORT
+        DEBUG_MSG_P(PSTR(" TERMINAL"));
+    #endif
+
+    DEBUG_MSG_P(PSTR("\n\n"));
+
+    // -------------------------------------------------------------------------
+
+    unsigned char custom_reset = customReset();
+    if (custom_reset > 0) {
+        char buffer[32];
+        strcpy_P(buffer, custom_reset_string[custom_reset-1]);
+        DEBUG_MSG_P(PSTR("[INIT] Last reset reason: %s\n"), buffer);
+    } else {
+        DEBUG_MSG_P(PSTR("[INIT] Last reset reason: %s\n"), (char *) ESP.getResetReason().c_str());
     }
-    DEBUG_MSG("\n\n");
+
+    DEBUG_MSG_P(PSTR("[INIT] Free heap: %u bytes\n"), ESP.getFreeHeap());
+    #if ADC_VCC_ENABLED
+        DEBUG_MSG_P(PSTR("[INIT] Power: %d mV\n"), ESP.getVcc());
+    #endif
+    DEBUG_MSG_P(PSTR("\n"));
 
 }
 
 void setup() {
 
+    // Init EEPROM, Serial and SPIFFS
     hardwareSetup();
+
+    // Question system stability
+    systemCheck(false);
+
+    // Show welcome message and system configuration
     welcome();
 
+    // Init persistance and terminal features
     settingsSetup();
     if (getSetting("hostname").length() == 0) {
         setSetting("hostname", getIdentifier());
-        saveSettings();
     }
 
-    buttonSetup();
     wifiSetup();
     otaSetup();
+    #if TELNET_SUPPORT
+        telnetSetup();
+    #endif
+
+    // Do not run the next services if system is flagged stable
+    if (!systemCheck()) return;
+
+    buttonSetup();
     mqttSetup();
     webSetup();
     commsSetup();
-    fauxmoSetup();
     lightsSetup();
+
+    #if NTP_SUPPORT
+        ntpSetup();
+    #endif
+    #if ALEXA_SUPPORT
+	    alexaSetup();
+	#endif
+    #if NOFUSS_SUPPORT
+        nofussSetup();
+    #endif
+    #if DOMOTICZ_SUPPORT
+        domoticzSetup();
+    #endif
+
+    saveSettings();
 
 }
 
 void loop() {
 
     hardwareLoop();
-    commsLoop();
-    buttonLoop();
+    settingsLoop();
     wifiLoop();
     otaLoop();
+
+    // Do not run the next services if system is flagged stable
+    if (!systemCheck()) return;
+
+    buttonLoop();
     mqttLoop();
-    fauxmoLoop();
+    commsLoop();
+
+    #if NTP_SUPPORT
+        ntpLoop();
+    #endif
+    #if ALEXA_SUPPORT
+        alexaLoop();
+    #endif
+    #if NOFUSS_SUPPORT
+        nofussLoop();
+    #endif
 
 }

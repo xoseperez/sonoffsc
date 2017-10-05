@@ -31,7 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define SERIAL_BAUDRATE         57600
 
 #define FAN_PIN                 7
-#define FAN_TIME                5000
+#define FAN_OFF_DELAY           0
 
 #define LDR_PIN                 A3
 
@@ -44,9 +44,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define DHT_PIN                 6
 #ifndef DHT_TYPE
 // Uncomment the sensor type that you have (comment the other if applicable)
-#define DHT_TYPE                DHT11
-//#define DHT_TYPE                DHT22
+//#define DHT_TYPE                DHT11
+#define DHT_TYPE                DHT22
 #endif
+#define DHT_EXPIRES             60000
 
 #define RGB_PIN			        12
 #define RGB_COUNT               24
@@ -79,6 +80,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define DEFAULT_CLAP            0
 #define DEFAULT_THRESHOLD       0
 
+#define NULL_VALUE              -999
+
 // -----------------------------------------------------------------------------
 // Keywords
 // -----------------------------------------------------------------------------
@@ -95,6 +98,7 @@ const PROGMEM char at_clap[] = "AT+CLAP";
 const PROGMEM char at_code[] = "AT+CODE";
 const PROGMEM char at_thld[] = "AT+THLD";
 const PROGMEM char at_fan[] = "AT+FAN";
+const PROGMEM char at_fanoff[] = "AT+FANOFF";
 const PROGMEM char at_timeout[] = "AT+TIMEOUT";
 const PROGMEM char at_effect[] = "AT+EFFECT";
 const PROGMEM char at_color[] = "AT+COLOR";
@@ -138,12 +142,13 @@ bool push = DEFAULT_PUSH;
 bool clap = DEFAULT_CLAP;
 unsigned long every = 1000L * DEFAULT_EVERY;
 unsigned int threshold = DEFAULT_THRESHOLD;
+unsigned long fanoff = FAN_OFF_DELAY;
 
-float temperature;
-int humidity;
-float dust;
-int light;
-int noise;
+float temperature = NULL_VALUE;
+int humidity = NULL_VALUE;
+float dust = NULL_VALUE;
+int light = NULL_VALUE;
+int noise = NULL_VALUE;
 bool movement;
 
 //unsigned int noise_count = 0;
@@ -176,7 +181,7 @@ void rgbLoop() {
 
     if (rgbRunning && (rgbTimeout > 0)) {
         if (millis() - rgbStart > rgbTimeout) {
-            ws2812fx.setMode(FX_MODE_FADE_OUT);
+            ws2812fx.setMode(FX_MODE_FADE);
             rgbRunning = false;
         }
     }
@@ -198,7 +203,6 @@ void rgbEffect(unsigned int effect) {
 
 void rgbColor(unsigned long color) {
     ws2812fx.setColor(color);
-    ws2812fx.setMode(FX_MODE_STATIC);
     rgbStart = millis();
     rgbRunning = true;
 }
@@ -221,7 +225,6 @@ float getDust() {
 
 	delayMicroseconds(SHARP_DELTA_TIME);
 	digitalWrite(SHARP_LED_PIN, HIGH);
-	//delayMicroseconds(SHARP_SLEEP_TIME);
 
     // mg/m3
 	float dust = 170.0 * reading * (5.0 / 1024.0) - 100.0;
@@ -231,24 +234,51 @@ float getDust() {
 }
 
 void getDustDefer(bool push = false) {
-    fanStatus(true);
-    dustPush = push;
-    fanTicker.setInterval(FAN_TIME);
-    fanTicker.setCallback([](){
-        fanTicker.stop();
+    if (fanoff > 0) {
+        fanStatus(true);
+        dustPush = push;
+        fanTicker.setInterval(fanoff);
+        fanTicker.setCallback([](){
+            fanTicker.stop();
+            dust = getDust();
+            fanStatus(false);
+            if (dustPush) link.send_P(at_dust, dust, false);
+        });
+        fanTicker.start();
+    } else {
         dust = getDust();
-        fanStatus(false);
-        if (dustPush) link.send_P(at_dust, dust, false);
-    });
-    fanTicker.start();
+        if (push) link.send_P(at_dust, dust, false);
+    }
+}
+
+void loadTempAndHum() {
+
+    // Check at most once every minute
+    static unsigned long last = 0;
+    if (millis() - last < DHT_EXPIRES) return;
+
+    // Retrieve data
+    double h = dht.readHumidity();
+    double t = dht.readTemperature();
+
+    // Check values
+    if (isnan(h) || isnan(t)) return;
+    temperature = t;
+    humidity = h;
+
+    // Only set new expiration time if good reading
+    last = millis();
+
 }
 
 float getTemperature() {
-    return dht.readTemperature();
+    loadTempAndHum();
+    return temperature;
 }
 
 int getHumidity() {
-    return dht.readHumidity();
+    loadTempAndHum();
+    return humidity;
 }
 
 int getNoise() {
@@ -463,6 +493,11 @@ bool linkGet(char * key) {
         return true;
     }
 
+    if (strcmp_P(key, at_fanoff) == 0) {
+        link.send(key, fanoff, false);
+        return true;
+    }
+
     if (strcmp_P(key, at_clap) == 0) {
         link.send(key, clap ? 1 : 0, false);
         return true;
@@ -480,18 +515,21 @@ bool linkGet(char * key) {
 
     if (strcmp_P(key, at_temp) == 0) {
         if (every == 0) temperature = getTemperature();
+        if (temperature == NULL_VALUE) return false;
         link.send(key, 10 * temperature, false);
         return true;
     }
 
     if (strcmp_P(key, at_hum) == 0) {
         if (every == 0) humidity = getHumidity();
+        if (humidity == NULL_VALUE) return false;
         link.send(key, humidity, false);
         return true;
     }
 
     if (strcmp_P(key, at_noise) == 0) {
         if (every == 0) noise = getNoise();
+        if (noise == NULL_VALUE) return false;
         link.send(key, noise, false);
         return true;
     }
@@ -500,6 +538,7 @@ bool linkGet(char * key) {
         if (every == 0) {
             getDustDefer(true);
         } else {
+            if (dust == NULL_VALUE) return false;
             link.send(key, dust, false);
         }
         return true;
@@ -507,6 +546,7 @@ bool linkGet(char * key) {
 
     if (strcmp_P(key, at_light) == 0) {
         if (every == 0) light = getLight();
+        if (light == NULL_VALUE) return false;
         link.send(key, light, false);
         return true;
     }
@@ -581,6 +621,11 @@ bool linkSet(char * key, long value) {
             fanStatus(value == 1);
             return true;
         }
+    }
+
+    if (strcmp_P(key, at_fanoff) == 0) {
+        fanoff = value;
+        return true;
     }
 
     if (strcmp_P(key, at_timeout) == 0) {

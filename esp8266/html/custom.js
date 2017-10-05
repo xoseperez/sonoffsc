@@ -1,8 +1,8 @@
 var websock;
 var password = false;
 var maxNetworks;
-var host;
-var port;
+var messages = [];
+var webhost;
 
 // http://www.the-art-of-web.com/javascript/validate-password/
 function checkPassword(str) {
@@ -31,13 +31,103 @@ function validateForm(form) {
 
 }
 
+function valueSet(data, name, value) {
+    for (var i in data) {
+        if (data[i]['name'] == name) {
+            data[i]['value'] = value;
+            return;
+        }
+    }
+    data.push({'name': name, 'value': value});
+}
+
+function zeroPad(number, positions) {
+    return ("0".repeat(positions) + number).slice(-positions);
+}
+
 function doUpdate() {
+
     var form = $("#formSave");
+
     if (validateForm(form)) {
+
+        // Get data
         var data = form.serializeArray();
+
+        // Post-process
+        delete(data['filename']);
+        $("input[type='checkbox']").each(function() {
+            var name = $(this).attr("name");
+            if (name) {
+                valueSet(data, name, $(this).is(':checked') ? 1 : 0);
+            }
+        });
+
         websock.send(JSON.stringify({'config': data}));
     }
+
     return false;
+
+}
+
+function doUpgrade() {
+
+    var contents = $("input[name='upgrade']")[0].files[0];
+    if (typeof contents == 'undefined') {
+        alert("First you have to select a file from your computer.");
+        return false;
+    }
+    var filename = $("input[name='upgrade']").val().split('\\').pop();
+
+    var data = new FormData();
+    data.append('upgrade', contents, filename);
+
+    $.ajax({
+
+        // Your server script to process the upload
+        url: webhost + 'upgrade',
+        type: 'POST',
+
+        // Form data
+        data: data,
+
+        // Tell jQuery not to process data or worry about content-type
+        // You *must* include these options!
+        cache: false,
+        contentType: false,
+        processData: false,
+
+        success: function(data, text) {
+            $("#upgrade-progress").hide();
+            if (data == 'OK') {
+                alert("Firmware image uploaded, board rebooting. This page will be refreshed in 5 seconds.");
+                setTimeout(function() {
+                    window.location.reload();
+                }, 5000);
+            } else {
+                alert("There was an error trying to upload the new image, please try again (" + data + ").");
+            }
+        },
+
+        // Custom XMLHttpRequest
+        xhr: function() {
+            $("#upgrade-progress").show();
+            var myXhr = $.ajaxSettings.xhr();
+            if (myXhr.upload) {
+                // For handling the progress of the upload
+                myXhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        $('progress').attr({ value: e.loaded, max: e.total });
+                    }
+                } , false);
+            }
+            return myXhr;
+        },
+
+    });
+
+    return false;
+
 }
 
 function doUpdatePassword() {
@@ -60,6 +150,45 @@ function doReconnect() {
     var response = window.confirm("Are you sure you want to disconnect from the current WIFI network?");
     if (response == false) return false;
     websock.send(JSON.stringify({'action': 'reconnect'}));
+    return false;
+}
+
+function backupSettings() {
+    document.getElementById('downloader').src = webhost + 'config';
+    return false;
+}
+
+function onFileUpload(event) {
+
+    var inputFiles = this.files;
+    if (inputFiles == undefined || inputFiles.length == 0) return false;
+    var inputFile = inputFiles[0];
+    this.value = "";
+
+    var response = window.confirm("Previous settings will be overwritten. Are you sure you want to restore this settings?");
+    if (response == false) return false;
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var data = getJson(e.target.result);
+        if (data) {
+            websock.send(JSON.stringify({'action': 'restore', 'data': data}));
+        } else {
+            alert(messages[4]);
+        }
+    };
+    reader.readAsText(inputFile);
+
+    return false;
+
+}
+
+function restoreSettings() {
+    if (typeof window.FileReader !== 'function') {
+        alert("The file API isn't supported on this browser yet.");
+    } else {
+        $("#uploader").click();
+    }
     return false;
 }
 
@@ -175,12 +304,21 @@ function processData(data) {
             if (data.action == "reload") {
                 if (password) forgetCredentials();
                 setTimeout(function() {
-                    window.location = "/";
+                    window.location.reload();
                 }, 1000);
             }
 
             return;
 
+        }
+
+        if (key == "uptime") {
+            var uptime  = parseInt(data[key]);
+            var seconds = uptime % 60; uptime = parseInt(uptime / 60);
+            var minutes = uptime % 60; uptime = parseInt(uptime / 60);
+            var hours   = uptime % 24; uptime = parseInt(uptime / 24);
+            var days    = uptime;
+            data[key] = days + 'd ' + zeroPad(hours, 2) + 'h ' + zeroPad(minutes, 2) + 'm ' + zeroPad(seconds, 2) + 's';
         }
 
         if (key == "maxNetworks") {
@@ -213,7 +351,7 @@ function processData(data) {
 
         // Messages
         if (key == "message") {
-            window.alert(data.message);
+            window.alert(messages[data.message]);
             return;
         }
 
@@ -231,8 +369,8 @@ function processData(data) {
         if (key == "mqttStatus") {
             data.mqttStatus = data.mqttStatus ? "CONNECTED" : "NOT CONNECTED";
         }
-        if (key == "sensorMovement") {
-            data.sensorMovement = data.sensorMovement ? "YES" : "NO";
+        if (key == "ntpStatus") {
+            data.ntpStatus = data.ntpStatus ? "SYNC'D" : "NOT SYNC'D";
         }
 
         // Look for INPUTs
@@ -245,7 +383,9 @@ function processData(data) {
             } else if (element.attr('type') == 'radio') {
                 element.val([data[key]]);
             } else {
-                element.val(data[key]);
+                var pre = element.attr("pre") || "";
+                var post = element.attr("post") || "";
+                element.val(pre + data[key] + post);
             }
             return;
         }
@@ -253,7 +393,9 @@ function processData(data) {
         // Look for SPANs
         var element = $("span[name=" + key + "]");
         if (element.length > 0) {
-            element.html(data[key]);
+            var pre = element.attr("pre") || "";
+            var post = element.attr("post") || "";
+            element.html(pre + data[key] + post);
             return;
         }
 
@@ -281,19 +423,20 @@ function getJson(str) {
     }
 }
 
-function connect(h, p) {
+function connect(host) {
 
-    if (typeof h === 'undefined') {
-        h = window.location.hostname;
+    if (typeof host === 'undefined') {
+        host = window.location.href.replace('#', '');
+    } else {
+        if (!host.startsWith("http")) {
+            host = 'http://' + host + '/';
+        }
     }
-    if (typeof p === 'undefined') {
-        p = location.port;
-    }
-    host = h;
-    port = p;
+    webhost = host;
+    wshost = host.replace('http', 'ws') + 'ws';
 
     if (websock) websock.close();
-    websock = new WebSocket('ws://' + host + ':' + port + '/ws');
+    websock = new WebSocket(wshost);
     websock.onopen = function(evt) {
         console.log("Connected");
     };
@@ -309,14 +452,42 @@ function connect(h, p) {
     };
 }
 
+function initMessages() {
+    messages[01] = "Remote update started";
+    messages[02] = "OTA update started";
+    messages[03] = "Error parsing data!";
+    messages[04] = "The file does not look like a valid configuration backup or is corrupted";
+    messages[05] = "Changes saved. You should reboot your board now";
+    messages[06] = "Home Assistant auto-discovery message sent";
+    messages[07] = "Passwords do not match!";
+    messages[08] = "Changes saved";
+    messages[09] = "No changes detected";
+    messages[10] = "Session expired, please reload page...";
+}
+
 function init() {
+
+    initMessages();
 
     $("#menuLink").on('click', toggleMenu);
     $(".button-update").on('click', doUpdate);
     $(".button-update-password").on('click', doUpdatePassword);
     $(".button-reset").on('click', doReset);
     $(".button-reconnect").on('click', doReconnect);
+    $(".button-settings-backup").on('click', backupSettings);
+    $(".button-settings-restore").on('click', restoreSettings);
+    $('#uploader').on('change', onFileUpload);
     $(".button-apikey").on('click', doGenerateAPIKey);
+    $(".button-upgrade").on('click', doUpgrade);
+    $(".button-upgrade-browse").on('click', function() {
+        $("input[name='upgrade']")[0].click();
+        return false;
+    });
+    $("input[name='upgrade']").change(function (){
+        var fileName = $(this).val();
+        $("input[name='filename']").val(fileName.replace(/^.*[\\\/]/, ''));
+    });
+    $('progress').attr({ value: 0, max: 100 });
     $(".pure-menu-link").on('click', showPanel);
     $(".button-add-network").on('click', function() {
         $("div.more", addNetwork()).toggle();
@@ -327,7 +498,7 @@ function init() {
 
     $.ajax({
         'method': 'GET',
-        'url': 'http://' + host + ':' + port + '/auth'
+        'url': window.location.href + 'auth'
     }).done(function(data) {
         connect();
     }).fail(function(){

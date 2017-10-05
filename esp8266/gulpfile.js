@@ -2,7 +2,7 @@
 
 ESP8266 file system builder
 
-Copyright (C) 2016 by Xose Pérez <xose dot perez at gmail dot com>
+Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,30 +29,23 @@ const htmlmin = require('gulp-htmlmin');
 const cleancss = require('gulp-clean-css');
 const uglify = require('gulp-uglify');
 const gzip = require('gulp-gzip');
-const del = require('del');
 const inline = require('gulp-inline');
 const inlineImages = require('gulp-css-base64');
 const favicon = require('gulp-base64-favicon');
 
-const dataFolder = 'sonoffsc/static/';
+const dataFolder = 'sonoffsc/data/';
+const staticFolder = 'sonoffsc/static/';
 
-gulp.task('clean', function() {
-    del([ dataFolder + '*']);
-    return true;
-});
+String.prototype.replaceAll = function(search, replacement) {
+    var target = this;
+    return target.split(search).join(replacement);
+};
 
-gulp.task('files', ['clean'], function() {
-    return gulp.src([
-            'html/**/*.{jpg,jpeg,png,ico,gif}',
-            'html/fsversion'
-        ])
-        .pipe(gulp.dest(dataFolder));
-});
+var toHeader = function(filename) {
 
-gulp.task('buildfs_embeded', ['buildfs_inline'], function() {
-
-    var source = dataFolder + 'index.html.gz';
-    var destination = dataFolder + 'index.html.gz.h';
+    var source = dataFolder + filename;
+    var destination = staticFolder + filename + '.h';
+    var safename = filename.replaceAll('.', '_');
 
     var wstream = fs.createWriteStream(destination);
     wstream.on('error', function (err) {
@@ -61,11 +54,11 @@ gulp.task('buildfs_embeded', ['buildfs_inline'], function() {
 
     var data = fs.readFileSync(source);
 
-    wstream.write('#define index_html_gz_len ' + data.length + '\n');
-    wstream.write('const uint8_t index_html_gz[] PROGMEM = {')
+    wstream.write('#define ' + safename + '_len ' + data.length + '\n');
+    wstream.write('const uint8_t ' + safename + '[] PROGMEM = {')
 
     for (i=0; i<data.length; i++) {
-        if (i % 1000 == 0) wstream.write("\n");
+        if (i % 20 == 0) wstream.write("\n");
         wstream.write('0x' + ('00' + data[i].toString(16)).slice(-2));
         if (i<data.length-1) wstream.write(',');
     }
@@ -73,11 +66,18 @@ gulp.task('buildfs_embeded', ['buildfs_inline'], function() {
     wstream.write('\n};')
     wstream.end();
 
-    del([source]);
+}
 
+gulp.task('build_certs', function() {
+    toHeader('server.cer');
+    toHeader('server.key');
 });
 
-gulp.task('buildfs_inline', ['clean'], function() {
+gulp.task('buildfs_embeded', ['buildfs_inline'], function() {
+    toHeader('index.html.gz');
+});
+
+gulp.task('buildfs_inline', function() {
     return gulp.src('html/*.html')
         .pipe(favicon())
         .pipe(inline({

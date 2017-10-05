@@ -6,22 +6,35 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 
 */
 
+#if WEB_SUPPORT
+
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <ESP8266mDNS.h>
-#include <FS.h>
 #include <Hash.h>
+#include <FS.h>
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
 #include <Ticker.h>
+#include <vector>
+
+#if WEB_EMBEDDED
+#include "static/index.html.gz.h"
+#endif // WEB_EMBEDDED
+
+#if ASYNC_TCP_SSL_ENABLED & WEB_SSL_ENABLED
+#include "static/server.cer.h"
+#include "static/server.key.h"
+#endif // ASYNC_TCP_SSL_ENABLED & WEB_SSL_ENABLED
+
+// -----------------------------------------------------------------------------
 
 AsyncWebServer * _server;
-AsyncWebSocket ws("/ws");
-Ticker deferred;
-
-#include "static/index.html.gz.h"
 char _last_modified[50];
+Ticker _web_defer;
 
+// -----------------------------------------------------------------------------
+
+AsyncWebSocket _ws("/ws");
 typedef struct {
     IPAddress ip;
     unsigned long timestamp = 0;
@@ -29,29 +42,27 @@ typedef struct {
 ws_ticket_t _ticket[WS_BUFFER_SIZE];
 
 // -----------------------------------------------------------------------------
+
+typedef struct {
+    char * url;
+    char * key;
+    apiGetCallbackFunction getFn = NULL;
+    apiPutCallbackFunction putFn = NULL;
+} web_api_t;
+std::vector<web_api_t> _apis;
+
+// -----------------------------------------------------------------------------
 // WEBSOCKETS
 // -----------------------------------------------------------------------------
 
-bool wsSend(const char * payload) {
-    if (ws.count() > 0) {
-        DEBUG_MSG_P(PSTR("[WEBSOCKET] Broadcasting '%s'\n"), payload);
-        ws.textAll(payload);
-    }
-}
-
-bool wsSend(uint32_t client_id, const char * payload) {
-    DEBUG_MSG_P(PSTR("[WEBSOCKET] Sending '%s' to #%ld\n"), payload, client_id);
-    ws.text(client_id, payload);
-}
-
-void wsMQTTCallback(unsigned int type, const char * topic, const char * payload) {
+void _wsMQTTCallback(unsigned int type, const char * topic, const char * payload) {
 
     if (type == MQTT_CONNECT_EVENT) {
-        wsSend("{\"mqttStatus\": true}");
+        wsSend_P(PSTR("{\"mqttStatus\": true}"));
     }
 
     if (type == MQTT_DISCONNECT_EVENT) {
-        wsSend("{\"mqttStatus\": false}");
+        wsSend_P(PSTR("{\"mqttStatus\": false}"));
     }
 
 }
@@ -63,7 +74,7 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
     JsonObject& root = jsonBuffer.parseObject((char *) payload);
     if (!root.success()) {
         DEBUG_MSG_P(PSTR("[WEBSOCKET] Error parsing data\n"));
-        ws.text(client_id, "{\"message\": \"Error parsing data!\"}");
+        wsSend_P(client_id, PSTR("{\"message\": 3}"));
         return;
     }
 
@@ -75,15 +86,41 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
         DEBUG_MSG_P(PSTR("[WEBSOCKET] Requested action: %s\n"), action.c_str());
 
         if (action.equals("reset")) {
+            customReset(CUSTOM_RESET_WEB);
             ESP.restart();
+        }
+
+        if (action.equals("restore") && root.containsKey("data")) {
+
+            JsonObject& data = root["data"];
+            if (!data.containsKey("app") || (data["app"] != APP_NAME)) {
+                wsSend_P(client_id, PSTR("{\"message\": 4}"));
+                return;
+            }
+
+            for (unsigned int i = EEPROM_DATA_END; i < SPI_FLASH_SEC_SIZE; i++) {
+                EEPROM.write(i, 0xFF);
+            }
+
+            for (auto element : data) {
+                if (strcmp(element.key, "app") == 0) continue;
+                if (strcmp(element.key, "version") == 0) continue;
+                setSetting(element.key, element.value.as<char*>());
+            }
+
+            saveSettings();
+
+            wsSend_P(client_id, PSTR("{\"message\": 5}"));
+
         }
 
         if (action.equals("reconnect")) {
 
             // Let the HTTP request return and disconnect after 100ms
-            deferred.once_ms(100, wifiDisconnect);
+            _web_defer.once_ms(100, wifiDisconnect);
 
         }
+
 
     };
 
@@ -98,8 +135,8 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
         bool save = false;
         bool changed = false;
         bool changedMQTT = false;
-        bool apiEnabled = false;
-        bool clapEnabled = false;
+        bool changedNTP = false;
+
         unsigned int network = 0;
         String adminPass;
 
@@ -107,6 +144,9 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
 
             String key = config[i]["name"];
             String value = config[i]["value"];
+
+            // Skip firmware filename
+            if (key.equals("filename")) continue;
 
             if (key == "webMode") {
                 webMode = value.toInt();
@@ -120,22 +160,12 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
             }
             if (key == "adminPass2") {
                 if (!value.equals(adminPass)) {
-                    ws.text(client_id, "{\"message\": \"Passwords do not match!\"}");
+                    wsSend_P(client_id, PSTR("{\"message\": 7}"));
                     return;
                 }
                 if (value.length() == 0) continue;
-                ws.text(client_id, "{\"action\": \"reload\"}");
+                wsSend_P(client_id, PSTR("{\"action\": \"reload\"}"));
                 key = String("adminPass");
-            }
-
-            // Checkboxes
-            if (key == "apiEnabled") {
-                apiEnabled = true;
-                continue;
-            }
-            if (key == "clapEnabled") {
-                clapEnabled = true;
-                continue;
             }
 
             if (key == "ssid") {
@@ -163,22 +193,14 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
                 setSetting(key, value);
                 save = changed = true;
                 if (key.startsWith("mqtt")) changedMQTT = true;
+                #if NTP_SUPPORT
+                    if (key.startsWith("ntp")) changedNTP = true;
+                #endif
             }
 
         }
 
         if (webMode == WEB_MODE_NORMAL) {
-
-            // Checkboxes
-            if (apiEnabled != (getSetting("apiEnabled").toInt() == 1)) {
-                setSetting("apiEnabled", apiEnabled);
-                save = changed = true;
-            }
-
-            if (clapEnabled != (getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1)) {
-                setSetting("clapEnabled", clapEnabled);
-                save = changed = true;
-            }
 
             // Clean wifi networks
             int i = 0;
@@ -215,20 +237,20 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
             saveSettings();
             wifiConfigure();
             otaConfigure();
-            buildTopics();
             commsConfigure();
 
             // Check if we should reconfigure MQTT connection
             if (changedMQTT) {
+                mqttConfigure();
                 mqttDisconnect();
             }
 
         }
 
         if (changed) {
-            ws.text(client_id, "{\"message\": \"Changes saved\"}");
+            wsSend_P(client_id, PSTR("{\"message\": 8}"));
         } else {
-            ws.text(client_id, "{\"message\": \"No changes detected\"}");
+            wsSend_P(client_id, PSTR("{\"message\": 9}"));
         }
 
     }
@@ -237,14 +259,14 @@ void _wsParse(uint32_t client_id, uint8_t * payload, size_t length) {
 
 void _wsStart(uint32_t client_id) {
 
-    char chipid[6];
-    sprintf(chipid, "%06X", ESP.getChipId());
+    char chipid[7];
+    snprintf_P(chipid, sizeof(chipid), PSTR("%06X"), ESP.getChipId());
 
     DynamicJsonBuffer jsonBuffer;
     JsonObject& root = jsonBuffer.createObject();
 
     bool changePassword = false;
-    #if FORCE_CHANGE_PASS == 1
+    #if WEB_FORCE_PASS_CHANGE
         String adminPass = getSetting("adminPass", ADMIN_PASS);
         if (adminPass.equals(ADMIN_PASS)) changePassword = true;
     #endif
@@ -259,23 +281,42 @@ void _wsStart(uint32_t client_id) {
 
         root["app"] = APP_NAME;
         root["version"] = APP_VERSION;
-        root["buildDate"] = __DATE__;
-        root["buildTime"] = __TIME__;
+        root["build"] = buildTime();
 
         root["manufacturer"] = String(MANUFACTURER);
         root["chipid"] = chipid;
         root["mac"] = WiFi.macAddress();
-        root["device"] = String(DEVICE);
-        root["hostname"] = getSetting("hostname", HOSTNAME);
+        root["device"] = String(DEVICE_NAME);
+        root["hostname"] = getSetting("hostname");
         root["network"] = getNetwork();
         root["deviceip"] = getIP();
+        root["time"] = ntpDateTime();
+        root["uptime"] = getUptime();
+        root["heap"] = ESP.getFreeHeap();
+        root["sketch_size"] = ESP.getSketchSize();
+        root["free_size"] = ESP.getFreeSketchSpace();
+
+        #if NTP_SUPPORT
+            root["ntpVisible"] = 1;
+            root["ntpStatus"] = ntpConnected();
+            root["ntpServer1"] = getSetting("ntpServer1", NTP_SERVER);
+            root["ntpServer2"] = getSetting("ntpServer2");
+            root["ntpServer3"] = getSetting("ntpServer3");
+            root["ntpOffset"] = getSetting("ntpOffset", NTP_TIME_OFFSET).toInt();
+            root["ntpDST"] = getSetting("ntpDST", NTP_DAY_LIGHT).toInt() == 1;
+        #endif
 
         root["mqttStatus"] = mqttConnected();
+        root["mqttEnabled"] = mqttEnabled();
         root["mqttServer"] = getSetting("mqttServer", MQTT_SERVER);
         root["mqttPort"] = getSetting("mqttPort", MQTT_PORT);
         root["mqttUser"] = getSetting("mqttUser");
         root["mqttPassword"] = getSetting("mqttPassword");
-
+        #if ASYNC_TCP_SSL_ENABLED
+            root["mqttsslVisible"] = 1;
+            root["mqttUseSSL"] = getSetting("mqttUseSSL", 0).toInt() == 1;
+            root["mqttFP"] = getSetting("mqttFP");
+        #endif
         root["mqttTopic"] = getSetting("mqttTopic", MQTT_TOPIC);
         root["mqttTopicLight"] = getSetting("mqttTopicLight", MQTT_TOPIC_LIGHT);
         root["mqttTopicTemp"] = getSetting("mqttTopicTemp", MQTT_TOPIC_TEMPERATURE);
@@ -284,14 +325,15 @@ void _wsStart(uint32_t client_id) {
         root["mqttTopicDust"] = getSetting("mqttTopicDust", MQTT_TOPIC_DUST);
         root["mqttTopicMovement"] = getSetting("mqttTopicMovement", MQTT_TOPIC_MOVE);
         root["mqttTopicClap"] = getSetting("mqttTopicClap", MQTT_TOPIC_CLAP);
+        root["mqttUseJson"] = getSetting("mqttUseJson", MQTT_USE_JSON).toInt() == 1;
 
-        root["apiVisible"] = 0;
-        root["apiEnabled"] = getSetting("apiEnabled").toInt() == 1;
+        root["apiEnabled"] = getSetting("apiEnabled", API_ENABLED).toInt() == 1;
         root["apiKey"] = getSetting("apiKey");
 
-        #if ENABLE_DOMOTICZ
+        #if DOMOTICZ_SUPPORT
 
             root["dczVisible"] = 1;
+            root["dczEnabled"] = getSetting("dczEnabled", DOMOTICZ_ENABLED).toInt() == 1;
             root["dczTopicIn"] = getSetting("dczTopicIn", DOMOTICZ_IN_TOPIC);
             root["dczTopicOut"] = getSetting("dczTopicOut", DOMOTICZ_OUT_TOPIC);
 
@@ -302,6 +344,17 @@ void _wsStart(uint32_t client_id) {
             root["dczIdxLight"] = getSetting("dczIdxLight").toInt();
             root["dczIdxDust"] = getSetting("dczIdxDust").toInt();
 
+        #endif
+
+        #if ALEXA_SUPPORT
+            root["alexaVisible"] = 1;
+            root["alexaEnabled"] = getSetting("alexaEnabled", ALEXA_ENABLED).toInt() == 1;
+        #endif
+
+        #if NOFUSS_SUPPORT
+            root["nofussVisible"] = 1;
+            root["nofussEnabled"] = getSetting("nofussEnabled", NOFUSS_ENABLED).toInt() == 1;
+            root["nofussServer"] = getSetting("nofussServer", NOFUSS_SERVER);
         #endif
 
         root["sensorTemp"] = getTemperature();
@@ -330,7 +383,7 @@ void _wsStart(uint32_t client_id) {
 
     String output;
     root.printTo(output);
-    ws.text(client_id, (char *) output.c_str());
+    wsSend(client_id, (char *) output.c_str());
 
 }
 
@@ -346,7 +399,7 @@ bool _wsAuth(AsyncWebSocketClient * client) {
 
     if (index == WS_BUFFER_SIZE) {
         DEBUG_MSG_P(PSTR("[WEBSOCKET] Validation check failed\n"));
-        ws.text(client->id(), "{\"message\": \"Session expired, please reload page...\"}");
+        wsSend_P(client->id(), PSTR("{\"message\": 10}"));
         return false;
     }
 
@@ -396,24 +449,222 @@ void _wsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventTy
 }
 
 // -----------------------------------------------------------------------------
+
+bool wsConnected() {
+    return (_ws.count() > 0);
+}
+
+void wsSend(const char * payload) {
+    if (_ws.count() > 0) {
+        _ws.textAll(payload);
+    }
+}
+
+void wsSend_P(PGM_P payload) {
+    if (_ws.count() > 0) {
+        char buffer[strlen_P(payload)];
+        strcpy_P(buffer, payload);
+        _ws.textAll(buffer);
+    }
+}
+
+void wsSend(uint32_t client_id, const char * payload) {
+    _ws.text(client_id, payload);
+}
+
+void wsSend_P(uint32_t client_id, PGM_P payload) {
+    char buffer[strlen_P(payload)];
+    strcpy_P(buffer, payload);
+    _ws.text(client_id, buffer);
+}
+
+void wsSetup() {
+    _ws.onEvent(_wsEvent);
+    mqttRegister(_wsMQTTCallback);
+    _server->addHandler(&_ws);
+    _server->on("/auth", HTTP_GET, _onAuth);
+}
+
+// -----------------------------------------------------------------------------
+// API
+// -----------------------------------------------------------------------------
+
+bool _authAPI(AsyncWebServerRequest *request) {
+
+    if (getSetting("apiEnabled", API_ENABLED).toInt() == 0) {
+        DEBUG_MSG_P(PSTR("[WEBSERVER] HTTP API is not enabled\n"));
+        request->send(403);
+        return false;
+    }
+
+    if (!request->hasParam("apikey", (request->method() == HTTP_PUT))) {
+        DEBUG_MSG_P(PSTR("[WEBSERVER] Missing apikey parameter\n"));
+        request->send(403);
+        return false;
+    }
+
+    AsyncWebParameter* p = request->getParam("apikey", (request->method() == HTTP_PUT));
+    if (!p->value().equals(getSetting("apiKey"))) {
+        DEBUG_MSG_P(PSTR("[WEBSERVER] Wrong apikey parameter\n"));
+        request->send(403);
+        return false;
+    }
+
+    return true;
+
+}
+
+bool _asJson(AsyncWebServerRequest *request) {
+    bool asJson = false;
+    if (request->hasHeader("Accept")) {
+        AsyncWebHeader* h = request->getHeader("Accept");
+        asJson = h->value().equals("application/json");
+    }
+    return asJson;
+}
+
+ArRequestHandlerFunction _bindAPI(unsigned int apiID) {
+
+    return [apiID](AsyncWebServerRequest *request) {
+
+        _webLog(request);
+        if (!_authAPI(request)) return;
+
+        web_api_t api = _apis[apiID];
+
+        // Check if its a PUT
+        if (api.putFn != NULL) {
+            if (request->hasParam("value", request->method() == HTTP_PUT)) {
+                AsyncWebParameter* p = request->getParam("value", request->method() == HTTP_PUT);
+                (api.putFn)((p->value()).c_str());
+            }
+        }
+
+        // Get response from callback
+        char value[API_BUFFER_SIZE];
+        (api.getFn)(value, API_BUFFER_SIZE);
+
+        // The response will be a 404 NOT FOUND if the resource is not available
+        if (!value) {
+            DEBUG_MSG_P(PSTR("[API] Sending 404 response\n"));
+            request->send(404);
+            return;
+        }
+        DEBUG_MSG_P(PSTR("[API] Sending response '%s'\n"), value);
+
+        // Format response according to the Accept header
+        if (_asJson(request)) {
+            char buffer[64];
+            snprintf_P(buffer, sizeof(buffer), PSTR("{ \"%s\": %s }"), api.key, value);
+            request->send(200, "application/json", buffer);
+        } else {
+            request->send(200, "text/plain", value);
+        }
+
+    };
+
+}
+
+void _onAPIs(AsyncWebServerRequest *request) {
+
+    _webLog(request);
+
+    if (!_authAPI(request)) return;
+
+    bool asJson = _asJson(request);
+
+    String output;
+    if (asJson) {
+        DynamicJsonBuffer jsonBuffer;
+        JsonObject& root = jsonBuffer.createObject();
+        for (unsigned int i=0; i < _apis.size(); i++) {
+            root[_apis[i].key] = _apis[i].url;
+        }
+        root.printTo(output);
+        request->send(200, "application/json", output);
+
+    } else {
+        for (unsigned int i=0; i < _apis.size(); i++) {
+            output += _apis[i].key + String(" -> ") + _apis[i].url + String("\n");
+        }
+        request->send(200, "text/plain", output);
+    }
+
+}
+
+void _onRPC(AsyncWebServerRequest *request) {
+
+    _webLog(request);
+
+    if (!_authAPI(request)) return;
+
+    //bool asJson = _asJson(request);
+    int response = 404;
+
+    if (request->hasParam("action")) {
+
+        AsyncWebParameter* p = request->getParam("action");
+        String action = p->value();
+        DEBUG_MSG_P(PSTR("[RPC] Action: %s\n"), action.c_str());
+
+        if (action.equals("reset")) {
+            response = 200;
+            _web_defer.once_ms(100, []() {
+                customReset(CUSTOM_RESET_RPC);
+                ESP.restart();
+            });
+        }
+
+    }
+
+    request->send(response);
+
+}
+
+// -----------------------------------------------------------------------------
+
+void apiRegister(const char * url, const char * key, apiGetCallbackFunction getFn, apiPutCallbackFunction putFn) {
+
+    // Store it
+    web_api_t api;
+    char buffer[40];
+    snprintf_P(buffer, sizeof(buffer), PSTR("/api/%s"), url);
+    api.url = strdup(buffer);
+    api.key = strdup(key);
+    api.getFn = getFn;
+    api.putFn = putFn;
+    _apis.push_back(api);
+
+    // Bind call
+    unsigned int methods = HTTP_GET;
+    if (putFn != NULL) methods += HTTP_PUT;
+    _server->on(buffer, methods, _bindAPI(_apis.size() - 1));
+
+}
+
+void apiSetup() {
+    _server->on("/apis", HTTP_GET, _onAPIs);
+    _server->on("/rpc", HTTP_GET, _onRPC);
+}
+
+// -----------------------------------------------------------------------------
 // WEBSERVER
 // -----------------------------------------------------------------------------
 
-void _logRequest(AsyncWebServerRequest *request) {
-    DEBUG_MSG("[WEBSERVER] Request: %s %s\n", request->methodToString(), request->url().c_str());
+void _webLog(AsyncWebServerRequest *request) {
+    DEBUG_MSG_P(PSTR("[WEBSERVER] Request: %s %s\n"), request->methodToString(), request->url().c_str());
 }
 
 bool _authenticate(AsyncWebServerRequest *request) {
     String password = getSetting("adminPass", ADMIN_PASS);
     char httpPassword[password.length() + 1];
     password.toCharArray(httpPassword, password.length() + 1);
-    return request->authenticate(HTTP_USERNAME, httpPassword);
+    return request->authenticate(WEB_USERNAME, httpPassword);
 }
 
 void _onAuth(AsyncWebServerRequest *request) {
 
-    _logRequest(request);
-
+    _webLog(request);
     if (!_authenticate(request)) return request->requestAuthentication();
 
     IPAddress ip = request->client()->remoteIP();
@@ -434,9 +685,36 @@ void _onAuth(AsyncWebServerRequest *request) {
 
 }
 
+void _onGetConfig(AsyncWebServerRequest *request) {
+
+    _webLog(request);
+    if (!_authenticate(request)) return request->requestAuthentication();
+
+    AsyncJsonResponse * response = new AsyncJsonResponse();
+    JsonObject& root = response->getRoot();
+
+    root["app"] = APP_NAME;
+    root["version"] = APP_VERSION;
+
+    unsigned int size = settingsKeyCount();
+    for (unsigned int i=0; i<size; i++) {
+        String key = settingsKeyName(i);
+        String value = getSetting(key);
+        root[key] = value;
+    }
+
+    char buffer[100];
+    snprintf_P(buffer, sizeof(buffer), PSTR("attachment; filename=\"%s-backup.json\""), (char *) getSetting("hostname").c_str());
+    response->addHeader("Content-Disposition", buffer);
+    response->setLength();
+    request->send(response);
+
+}
+
+#if WEB_EMBEDDED
 void _onHome(AsyncWebServerRequest *request) {
 
-    _logRequest(request);
+    _webLog(request);
 
     if (request->header("If-Modified-Since").equals(_last_modified)) {
 
@@ -444,7 +722,35 @@ void _onHome(AsyncWebServerRequest *request) {
 
     } else {
 
-        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", index_html_gz, index_html_gz_len);
+        #if ASYNC_TCP_SSL_ENABLED
+
+            // Chunked response, we calculate the chunks based on free heap (in multiples of 32)
+            // This is necessary when a TLS connection is open since it sucks too much memory
+            DEBUG_MSG_P(PSTR("[MAIN] Free heap: %d bytes\n"), ESP.getFreeHeap());
+            size_t max = (ESP.getFreeHeap() / 3) & 0xFFE0;
+
+            AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", [max](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+
+                // Get the chunk based on the index and maxLen
+                size_t len = index_html_gz_len - index;
+                if (len > maxLen) len = maxLen;
+                if (len > max) len = max;
+                if (len > 0) memcpy_P(buffer, index_html_gz + index, len);
+
+                DEBUG_MSG_P(PSTR("[WEB] Sending %d%%%% (max chunk size: %4d)\r"), int(100 * index / index_html_gz_len), max);
+                if (len == 0) DEBUG_MSG_P(PSTR("\n"));
+
+                // Return the actual length of the chunk (0 for end of file)
+                return len;
+
+            });
+
+        #else
+
+            AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", index_html_gz, index_html_gz_len);
+
+        #endif
+
         response->addHeader("Content-Encoding", "gzip");
         response->addHeader("Last-Modified", _last_modified);
         request->send(response);
@@ -452,78 +758,150 @@ void _onHome(AsyncWebServerRequest *request) {
     }
 
 }
+#endif
 
-bool _apiAuth(AsyncWebServerRequest *request) {
+#if ASYNC_TCP_SSL_ENABLED & WEB_SSL_ENABLED
 
-    if (getSetting("apiEnabled").toInt() == 0) {
-        DEBUG_MSG("[WEBSERVER] HTTP API is not enabled\n");
-        request->send(403);
-        return false;
+int _onCertificate(void * arg, const char *filename, uint8_t **buf) {
+
+#if WEB_EMBEDDED
+
+    if (strcmp(filename, "server.cer") == 0) {
+        uint8_t * nbuf = (uint8_t*) malloc(server_cer_len);
+        memcpy_P(nbuf, server_cer, server_cer_len);
+        *buf = nbuf;
+        DEBUG_MSG_P(PSTR("[WEB] SSL File: %s - OK\n"), filename);
+        return server_cer_len;
     }
 
-    if (!request->hasParam("apikey", (request->method() == HTTP_PUT))) {
-        DEBUG_MSG("[WEBSERVER] Missing apikey parameter\n");
-        request->send(403);
-        return false;
+    if (strcmp(filename, "server.key") == 0) {
+        uint8_t * nbuf = (uint8_t*) malloc(server_key_len);
+        memcpy_P(nbuf, server_key, server_key_len);
+        *buf = nbuf;
+        DEBUG_MSG_P(PSTR("[WEB] SSL File: %s - OK\n"), filename);
+        return server_key_len;
     }
 
-    AsyncWebParameter* p = request->getParam("apikey", (request->method() == HTTP_PUT));
-    if (!p->value().equals(getSetting("apiKey"))) {
-        DEBUG_MSG("[WEBSERVER] Wrong apikey parameter\n");
-        request->send(403);
-        return false;
-    }
+    DEBUG_MSG_P(PSTR("[WEB] SSL File: %s - ERROR\n"), filename);
+    *buf = 0;
+    return 0;
 
-    return true;
+#else
+
+    File file = SPIFFS.open(filename, "r");
+    if (file) {
+        size_t size = file.size();
+        uint8_t * nbuf = (uint8_t*) malloc(size);
+        if (nbuf) {
+            size = file.read(nbuf, size);
+            file.close();
+            *buf = nbuf;
+            DEBUG_MSG_P(PSTR("[WEB] SSL File: %s - OK\n"), filename);
+            return size;
+        }
+        file.close();
+    }
+    DEBUG_MSG_P(PSTR("[WEB] SSL File: %s - ERROR\n"), filename);
+    *buf = 0;
+    return 0;
+
+#endif
 
 }
 
-void _onSensors(AsyncWebServerRequest *request) {
+#endif
 
-    _logRequest(request);
+void _onUpgrade(AsyncWebServerRequest *request) {
 
-    if (!_apiAuth(request)) return;
+    char buffer[10];
+    if (!Update.hasError()) {
+        sprintf_P(buffer, PSTR("OK"));
+    } else {
+        sprintf_P(buffer, PSTR("ERROR %d"), Update.getError());
+    }
 
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& root = jsonBuffer.createObject();
-
-    root["temperature"] = getTemperature();
-    root["humidity"] = getHumidity();
-    root["dust"] = getDust();
-    root["light"] = getLight();
-    root["noise"] = getNoise();
-    root["movement"] = getMovement();
-
-    String output;
-    root.printTo(output);
-    request->send(200, "application/json", output);
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", buffer);
+    response->addHeader("Connection", "close");
+    if (!Update.hasError()) {
+        _web_defer.once_ms(100, []() {
+            customReset(CUSTOM_RESET_UPGRADE);
+            ESP.restart();
+        });
+    }
+    request->send(response);
 
 }
+
+void _onUpgradeData(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+    if (!index) {
+        DEBUG_MSG_P(PSTR("[UPGRADE] Start: %s\n"), filename.c_str());
+        Update.runAsync(true);
+        if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)) {
+            #ifdef DEBUG_PORT
+                Update.printError(DEBUG_PORT);
+            #endif
+        }
+    }
+    if (!Update.hasError()) {
+        if (Update.write(data, len) != len) {
+            #ifdef DEBUG_PORT
+                Update.printError(DEBUG_PORT);
+            #endif
+        }
+    }
+    if (final) {
+        if (Update.end(true)){
+            DEBUG_MSG_P(PSTR("[UPGRADE] Success:  %u bytes\n"), index + len);
+        } else {
+            #ifdef DEBUG_PORT
+                Update.printError(DEBUG_PORT);
+            #endif
+        }
+    } else {
+        DEBUG_MSG_P(PSTR("[UPGRADE] Progress: %u bytes\r"), index + len);
+    }
+}
+
+// -----------------------------------------------------------------------------
 
 void webSetup() {
 
+    // Cache the Last-Modifier header value
+    snprintf_P(_last_modified, sizeof(_last_modified), PSTR("%s %s GMT"), __DATE__, __TIME__);
+
     // Create server
-    _server = new AsyncWebServer(getSetting("webPort", WEBSERVER_PORT).toInt());
+    #if ASYNC_TCP_SSL_ENABLED & WEB_SSL_ENABLED
+    unsigned int port = 443;
+    #else
+    unsigned int port = getSetting("webPort", WEB_PORT).toInt();
+    #endif
+    _server = new AsyncWebServer(port);
 
     // Setup websocket
-    ws.onEvent(_wsEvent);
-    mqttRegister(wsMQTTCallback);
+    wsSetup();
 
-    // Cache the Last-Modifier header value
-    sprintf(_last_modified, "%s %s GMT", __DATE__, __TIME__);
-
-    // Setup webserver
-    _server->addHandler(&ws);
+    // API setup
+    apiSetup();
 
     // Rewrites
     _server->rewrite("/", "/index.html");
 
     // Serve home (basic authentication protection)
-    _server->on("/index.html", HTTP_GET, _onHome);
-    _server->on("/auth", HTTP_GET, _onAuth);
+    #if WEB_EMBEDDED
+        _server->on("/index.html", HTTP_GET, _onHome);
+    #endif
+    _server->on("/config", HTTP_GET, _onGetConfig);
+    _server->on("/upgrade", HTTP_POST, _onUpgrade, _onUpgradeData);
 
-    // TODO: API entry points
-    _server->on("/api/sensors", HTTP_GET, _onSensors);
+    // Serve static files
+    #if SPIFFS_SUPPORT
+        _server->serveStatic("/", SPIFFS, "/")
+            .setLastModified(_last_modified)
+            .setFilter([](AsyncWebServerRequest *request) -> bool {
+                _webLog(request);
+                return true;
+            });
+    #endif
 
     // 404
     _server->onNotFound([](AsyncWebServerRequest *request){
@@ -531,7 +909,14 @@ void webSetup() {
     });
 
     // Run server
+    #if ASYNC_TCP_SSL_ENABLED & WEB_SSL_ENABLED
+    _server->onSslFileRequest(_onCertificate, NULL);
+    _server->beginSecure("server.cer", "server.key", NULL);
+    #else
     _server->begin();
-    DEBUG_MSG_P(PSTR("[WEBSERVER] Webserver running on port %d\n"), getSetting("webPort", WEBSERVER_PORT).toInt());
+    #endif
+    DEBUG_MSG_P(PSTR("[WEBSERVER] Webserver running on port %d\n"), port);
 
 }
+
+#endif // WEB_SUPPORT

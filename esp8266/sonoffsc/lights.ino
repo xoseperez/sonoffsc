@@ -6,37 +6,16 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 
 */
 
+#include <Ticker.h>
+
+Ticker _lights_defer;
+unsigned char _channels[3] = {0};
+
 // -----------------------------------------------------------------------------
 // LIGHTS
 // -----------------------------------------------------------------------------
 
-// Thanks to Sacha Telgenhof for sharing this code in his AiLight library
-// https://github.com/stelgenhof/AiLight
-void color_temperature2array(unsigned int temperature, unsigned int * array) {
-
-    // Force boundaries and conversion
-    temperature = constrain(temperature, 1000, 40000) / 100;
-
-    // Calculate colors
-    unsigned int red = (temperature <= 66)
-        ? 255
-        : 329.698727446 * pow((temperature - 60), -0.1332047592);
-    unsigned int green = (temperature <= 66)
-        ? 99.4708025861 * log(temperature) - 161.1195681661
-        : 288.1221695283 * pow(temperature, -0.0755148492);
-    unsigned int blue = (temperature >= 66)
-        ? 255
-        : ((temperature <= 19)
-            ? 0
-            : 138.5177312231 * log(temperature - 10) - 305.0447927307);
-
-    // Save values
-    array[0] = constrain(red, 0, 255);
-    array[1] = constrain(green, 0, 255);
-    array[2] = constrain(blue, 0, 255);
-}
-
-void color_string2array(const char * rgb, unsigned int * array) {
+void _fromRGB(const char * rgb) {
 
     char * p = (char *) rgb;
     if (strlen(p) == 0) return;
@@ -45,74 +24,85 @@ void color_string2array(const char * rgb, unsigned int * array) {
     if (p[0] == '#') {
 
         ++p;
-        unsigned long value = strtol(p, NULL, 16);
-        array[0] = (value >> 16) & 0xFF;
-        array[1] = (value >> 8) & 0xFF;
-        array[2] = (value) & 0xFF;
+        unsigned long value = strtoul(p, NULL, 16);
+        _channels[0] = (value >> 16) & 0xFF;
+        _channels[1] = (value >> 8) & 0xFF;
+        _channels[2] = (value) & 0xFF;
 
-    // it's a temperature
-    } else if (p[strlen(p)-1] == 'K') {
+    // it's a temperature in mireds
+    } else if (p[0] == 'M') {
 
-        p[strlen(p)-1] = 0;
-        unsigned int temperature = atoi(p);
-        color_temperature2array(temperature, array);
+        unsigned long mireds = atol(p + 1);
+        _fromMireds(mireds);
+
+    // it's a temperature in kelvin
+    } else if (p[0] == 'K') {
+
+        unsigned long kelvin = atol(p + 1);
+        _fromKelvin(kelvin);
 
     // otherwise assume decimal values separated by commas
     } else {
 
         char * tok;
+        unsigned char count = 0;
+
         tok = strtok(p, ",");
-        array[0] = atoi(tok);
-        tok = strtok(NULL, ",");
-
-        // if there are more than one value assume R,G,B
-        if (tok != NULL) {
-            array[1] = atoi(tok);
+        while (tok != NULL) {
+            _channels[count] = atoi(tok);
+            if (++count == 3) break;
             tok = strtok(NULL, ",");
-            if (tok != NULL) {
-                array[2] = atoi(tok);
-            } else {
-                array[2] = 0;
-            }
+        }
 
-        // only one value set red, green and blue to the same value
-        } else {
-            array[2] = array[1] = array[0];
+        // RGB but less than 3 values received
+        if (count < 3) {
+            _channels[1] = _channels[0];
+            _channels[2] = _channels[0];
         }
 
     }
 
 }
 
-void sendEffect(long effect) {
-    delay(200);
-    send_P_repeat(at_effect, effect);
+// Thanks to Sacha Telgenhof for sharing this code in his AiLight library
+// https://github.com/stelgenhof/AiLight
+void _fromKelvin(unsigned long kelvin) {
+
+    // Calculate colors
+    unsigned int red = (kelvin <= 66)
+        ? 255
+        : 329.698727446 * pow((kelvin - 60), -0.1332047592);
+    unsigned int green = (kelvin <= 66)
+        ? 99.4708025861 * log(kelvin) - 161.1195681661
+        : 288.1221695283 * pow(kelvin, -0.0755148492);
+    unsigned int blue = (kelvin >= 66)
+        ? 255
+        : ((kelvin <= 19)
+            ? 0
+            : 138.5177312231 * log(kelvin - 10) - 305.0447927307);
+
+    // Save values
+    _channels[0] = constrain(red, 0, 255);
+    _channels[1] = constrain(green, 0, 255);
+    _channels[2] = constrain(blue, 0, 255);
+
 }
 
-void sendColor(const char * rgb) {
-
-    unsigned int components[3];
-    color_string2array(rgb, components);
-    unsigned long color = components[0] + components[1] * 256 + components[2] * 256 * 256;
-
-    delay(200);
-    send_P_repeat(at_timeout, 0);
-    send_P_repeat(at_speed, 100);
-    send_P_repeat(at_bright, 255);
-    send_P_repeat(at_color, color);
-
+// Color temperature is measured in mireds (kelvin = 1e6/mired)
+void _fromMireds(unsigned long mireds) {
+    if (mireds == 0) mireds = 1;
+    unsigned long kelvin = constrain(1000000UL / mireds, 1000, 40000) / 100;
+    _fromKelvin(kelvin);
 }
 
-void sendNotification(bool state) {
-    sendEffect(state ? NOTIFICATION_ON_EFFECT : NOTIFICATION_OFF_EFFECT);
-}
-
-void lightsMqttCallback(unsigned int type, const char * topic, const char * payload) {
+void _lightsMqttCallback(unsigned int type, const char * topic, const char * payload) {
 
 	// When connected, subscribe to the topic
 	if (type == MQTT_CONNECT_EVENT) {
 		mqttSubscribe(MQTT_TOPIC_RGB);
         mqttSubscribe(MQTT_TOPIC_EFFECT);
+        mqttSubscribe(MQTT_TOPIC_BRIGHTNESS);
+        mqttSubscribe(MQTT_TOPIC_SPEED);
 	}
 
 	// Messages
@@ -124,16 +114,73 @@ void lightsMqttCallback(unsigned int type, const char * topic, const char * payl
 			sendColor((char*) payload);
 		}
 
+        if (t.equals(MQTT_TOPIC_BRIGHTNESS)) {
+            unsigned char brightness = constrain(atoi(payload), 0, 255);
+			sendBrightness(brightness);
+		}
+
+        if (t.equals(MQTT_TOPIC_SPEED)) {
+            unsigned char speed = constrain(atoi(payload), 0, 255);
+			sendSpeed(speed);
+		}
+
         if (t.equals(MQTT_TOPIC_EFFECT)) {
-			sendEffect(atoi((char *) payload));
+            unsigned char effect = constrain(atoi(payload), 0, 53);
+			sendEffect(effect);
 		}
 
 	}
 
 }
 
+//------------------------------------------------------------------------------
+
+void sendEffect(long effect) {
+    DEBUG_MSG_P(PSTR("[LIGHTS] Effect to %d\n"), effect);
+    send_P_repeat(at_effect, effect);
+}
+
+void sendColor(unsigned long color) {
+    DEBUG_MSG_P(PSTR("[LIGHTS] Color to %d\n"), color);
+    send_P_repeat(at_color, color);
+}
+
+void sendBrightness(unsigned char brightness) {
+    DEBUG_MSG_P(PSTR("[LIGHTS] Brightness to %d\n"), brightness);
+    send_P_repeat(at_bright, brightness);
+}
+
+void sendColor(const char * rgb) {
+    _fromRGB(rgb);
+    unsigned long color = _channels[0] * 255 * 255 + _channels[1] * 256 + _channels[2];
+    sendColor(color);
+}
+
+void sendSpeed(unsigned char speed) {
+    DEBUG_MSG_P(PSTR("[LIGHTS] Speed to %d\n"), speed);
+    send_P_repeat(at_speed, speed);
+}
+
+void sendNotification(bool state) {
+    if (state) {
+        sendBrightness(NOTIFICATION_BRIGHTNESS);
+        sendEffect(NOTIFICATION_EFFECT);
+        sendSpeed(NOTIFICATION_SPEED);
+        sendColor(NOTIFICATION_COLOR);
+    } else {
+        sendColor(0UL);
+    }
+}
+
 void lightsSetup() {
-    mqttRegister(lightsMqttCallback);
+
+    mqttRegister(_lightsMqttCallback);
+
+    // Notification ON and OFF in NOTIFICATION_TIME seconds
+    send_P_repeat(at_timeout, 0);
+    sendNotification(true);
+    _lights_defer.once(NOTIFICATION_TIME, sendNotification, false);
+
 }
 
 void lightsLoop() {

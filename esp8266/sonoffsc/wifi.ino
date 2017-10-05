@@ -7,6 +7,7 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 */
 
 #include "JustWifi.h"
+#include <ESP8266mDNS.h>
 
 // -----------------------------------------------------------------------------
 // WIFI
@@ -46,11 +47,15 @@ bool createAP() {
 
 void wifiConfigure() {
 
-    jw.setHostname(getSetting("hostname", HOSTNAME).c_str());
-    jw.setSoftAP(getSetting("hostname", HOSTNAME).c_str(), getSetting("adminPass", ADMIN_PASS).c_str());
+    jw.setHostname(getSetting("hostname").c_str());
+    jw.setSoftAP(getSetting("hostname").c_str(), getSetting("adminPass", ADMIN_PASS).c_str());
+    jw.setConnectTimeout(WIFI_CONNECT_TIMEOUT);
     jw.setReconnectTimeout(WIFI_RECONNECT_INTERVAL);
-    jw.setAPMode(AP_MODE_ALONE);
+    jw.setAPMode(WIFI_AP_MODE);
     jw.cleanNetworks();
+
+    // If system is flagged unstable we do not init wifi networks
+    if (!systemCheck()) return;
 
     int i;
     for (i = 0; i< WIFI_MAX_NETWORKS; i++) {
@@ -111,9 +116,52 @@ void wifiStatus() {
 
 }
 
+// Inject hardcoded networks
+void wifiInject() {
+
+    #ifdef WIFI1_SSID
+        if (getSetting("ssid", 0, "").length() == 0) setSetting("ssid", 0, WIFI1_SSID);
+    #endif
+    #ifdef WIFI1_PASS
+        if (getSetting("pass", 0, "").length() == 0) setSetting("pass", 0, WIFI1_PASS);
+    #endif
+    #ifdef WIFI1_IP
+        if (getSetting("ip", 0, "").length() == 0) setSetting("ip", 0, WIFI1_IP);
+    #endif
+    #ifdef WIFI1_GW
+        if (getSetting("gw", 0, "").length() == 0) setSetting("gw", 0, WIFI1_GW);
+    #endif
+    #ifdef WIFI1_MASK
+        if (getSetting("mask", 0, "").length() == 0) setSetting("mask", 0, WIFI1_MASK);
+    #endif
+    #ifdef WIFI1_DNS
+        if (getSetting("dns", 0, "").length() == 0) setSetting("dns", 0, WIFI1_DNS);
+    #endif
+
+    #ifdef WIFI2_SSID
+        if (getSetting("ssid", 1, "").length() == 0) setSetting("ssid", 1, WIFI2_SSID);
+    #endif
+    #ifdef WIFI2_PASS
+        if (getSetting("pass", 1, "").length() == 0) setSetting("pass", 1, WIFI2_PASS);
+    #endif
+    #ifdef WIFI2_IP
+        if (getSetting("ip", 1, "").length() == 0) setSetting("ip", 1, WIFI2_IP);
+    #endif
+    #ifdef WIFI2_GW
+        if (getSetting("gw", 1, "").length() == 0) setSetting("gw", 1, WIFI2_GW);
+    #endif
+    #ifdef WIFI2_MASK
+        if (getSetting("mask", 1, "").length() == 0) setSetting("mask", 1, WIFI2_MASK);
+    #endif
+    #ifdef WIFI2_DNS
+        if (getSetting("dns", 1, "").length() == 0) setSetting("dns", 1, WIFI2_DNS);
+    #endif
+
+}
+
 void wifiSetup() {
 
-    WiFi.persistent(false);
+    wifiInject();
     wifiConfigure();
 
     // Message callbacks
@@ -181,14 +229,37 @@ void wifiSetup() {
         }
 
         // Configure mDNS
-	    if (code == MESSAGE_CONNECTED || code == MESSAGE_ACCESSPOINT_CREATED) {
-            if (MDNS.begin(WiFi.getMode() == WIFI_AP ? APP_NAME : (char *) WiFi.hostname().c_str())) {
-                MDNS.addService("http", "tcp", getSetting("webPort", WEBSERVER_PORT).toInt());
-	            DEBUG_MSG_P(PSTR("[MDNS] OK\n"));
-	        } else {
-	            DEBUG_MSG_P(PSTR("[MDNS] FAIL\n"));
-	        }
-	    }
+        #if MDNS_SUPPORT
+
+    	    if (code == MESSAGE_CONNECTED || code == MESSAGE_ACCESSPOINT_CREATED) {
+
+                if (MDNS.begin(WiFi.getMode() == WIFI_AP ? APP_NAME : (char *) WiFi.hostname().c_str())) {
+
+                    DEBUG_MSG_P(PSTR("[MDNS] OK\n"));
+
+                    MDNS.addService("http", "tcp", getSetting("webPort", WEB_PORT).toInt());
+                    #if TELNET_SUPPORT
+                        MDNS.addService("telnet", "tcp", TELNET_PORT);
+                    #endif
+
+                    if (code == MESSAGE_CONNECTED) mqttDiscover();
+
+    	        } else {
+
+    	            DEBUG_MSG_P(PSTR("[MDNS] FAIL\n"));
+
+    	        }
+
+    	    }
+
+        #endif
+
+        // NTP connection reset
+        #if NTP_SUPPORT
+            if (code == MESSAGE_CONNECTED) {
+                ntpConnect();
+            }
+        #endif
 
     });
 

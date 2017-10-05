@@ -12,7 +12,7 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 
 #include <DebounceEvent.h>
 
-DebounceEvent _button = DebounceEvent(BUTTON_PIN);
+DebounceEvent _button = DebounceEvent(BUTTON_PIN, BUTTON_PUSHBUTTON, BUTTON_DEBOUNCE_DELAY, BUTTON_DBLCLICK_DELAY);
 
 void buttonSetup() {
 }
@@ -27,8 +27,16 @@ void buttonLoop() {
 
             if (_button.getEventCount() == 1) {
 
-                if(_button.getEventLength() >= 3000) {
-                    ESP.reset();
+                if(_button.getEventLength() >= BUTTON_LNGLNGCLICK_DELAY) {
+                    customReset(CUSTOM_RESET_HARDWARE);
+                    ESP.restart();
+                }
+
+                if(_button.getEventLength() >= BUTTON_LNGCLICK_DELAY) {
+                    DEBUG_MSG_P(PSTR("\n\nFACTORY RESET\n\n"));
+                    settingsFactoryReset();
+                    customReset(CUSTOM_RESET_FACTORY);
+                    ESP.restart();
                 }
 
             }
@@ -36,7 +44,7 @@ void buttonLoop() {
             if (_button.getEventCount() >= 2) {
                 createAP();
             }
-            
+
         }
 
     }
