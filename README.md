@@ -2,7 +2,7 @@
 
 Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
 
-**Current Release Version is 1.1.0**, read the [changelog](CHANGELOG.md).
+**Current Release Version is 1.1.1**, read the [changelog](CHANGELOG.md).
 
 ## Features
 

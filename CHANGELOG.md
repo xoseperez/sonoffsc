@@ -3,6 +3,13 @@
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.1.1] 2017-10-06
+### Changed
+- Reduced comm speed to 9600 bauds to get more reliable results
+
+### Fixed
+- Fixed color translation from RGB to long
+
 ## [1.1.0] 2017-10-01
 Lots of changes from ESPurna
 
