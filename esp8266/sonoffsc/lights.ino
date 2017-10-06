@@ -141,7 +141,7 @@ void sendEffect(long effect) {
 }
 
 void sendColor(unsigned long color) {
-    DEBUG_MSG_P(PSTR("[LIGHTS] Color to %d\n"), color);
+    DEBUG_MSG_P(PSTR("[LIGHTS] Color to %lu\n"), color);
     send_P_repeat(at_color, color);
 }
 
@@ -152,7 +152,7 @@ void sendBrightness(unsigned char brightness) {
 
 void sendColor(const char * rgb) {
     _fromRGB(rgb);
-    unsigned long color = _channels[0] * 255 * 255 + _channels[1] * 256 + _channels[2];
+    unsigned long color = _channels[0] << 16 | _channels[1] << 8 | _channels[2];
     sendColor(color);
 }
 
@@ -161,7 +161,8 @@ void sendSpeed(unsigned char speed) {
     send_P_repeat(at_speed, speed);
 }
 
-void sendNotification(bool state) {
+void sendNotification(bool state, unsigned long time) {
+
     if (state) {
         sendBrightness(NOTIFICATION_BRIGHTNESS);
         sendEffect(NOTIFICATION_EFFECT);
@@ -170,17 +171,18 @@ void sendNotification(bool state) {
     } else {
         sendColor(0UL);
     }
+
+    if (time > 0) _lights_defer.once(time, sendNotification, !state);
+
+}
+
+void sendNotification(bool state) {
+    sendNotification(state, 0);
 }
 
 void lightsSetup() {
-
     mqttRegister(_lightsMqttCallback);
-
-    // Notification ON and OFF in NOTIFICATION_TIME seconds
     send_P_repeat(at_timeout, 0);
-    sendNotification(true);
-    _lights_defer.once(NOTIFICATION_TIME, sendNotification, false);
-
 }
 
 void lightsLoop() {

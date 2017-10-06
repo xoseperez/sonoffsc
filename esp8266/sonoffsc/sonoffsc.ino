@@ -220,6 +220,9 @@ void welcome() {
 
 void setup() {
 
+    // Wait for the ATMEGA to be ready
+    delay(1000);
+
     // Init EEPROM, Serial and SPIFFS
     hardwareSetup();
 
@@ -264,6 +267,8 @@ void setup() {
     #endif
 
     saveSettings();
+
+    sendNotification(true, NOTIFICATION_TIME);
 
 }
 
