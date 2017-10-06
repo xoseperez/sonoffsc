@@ -28,7 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 // -----------------------------------------------------------------------------
 
-#define SERIAL_BAUDRATE         57600
+#define SERIAL_BAUDRATE         9600
 
 #define FAN_PIN                 7
 #define FAN_OFF_DELAY           0

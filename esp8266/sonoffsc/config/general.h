@@ -3,7 +3,7 @@
 //------------------------------------------------------------------------------
 
 #define ADMIN_PASS              "fibonacci" // Default password (WEB, OTA, WIFI)
-#define SERIAL_BAUDRATE         57600
+#define SERIAL_BAUDRATE         9600
 #define DEVICE_NAME             APP_NAME
 #define MANUFACTURER            "ITEAD STUDIO"
 
@@ -361,7 +361,13 @@ PROGMEM const char* const custom_reset_string[] = {
 #define NTP_UPDATE_INTERVAL     1800            // NTP check every 30 minutes
 
 // -----------------------------------------------------------------------------
-// BEHAVIOUR
+// COMMS
+// -----------------------------------------------------------------------------
+
+#define COMMS_DEFAULT_TRIES     1
+
+// -----------------------------------------------------------------------------
+// NOTIFICATIONS
 // -----------------------------------------------------------------------------
 
 #define LOCAL_NOTIFICATION      0
@@ -369,7 +375,7 @@ PROGMEM const char* const custom_reset_string[] = {
 #define NOTIFICATION_SPEED      128
 #define NOTIFICATION_COLOR      255UL           // Blue
 #define NOTIFICATION_BRIGHTNESS 255
-#define NOTIFICATION_TIME       10              // Seconds
+#define NOTIFICATION_TIME       30              // Seconds
 
 // -----------------------------------------------------------------------------
 // SENSORS

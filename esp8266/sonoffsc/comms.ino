@@ -137,11 +137,11 @@ bool commsSet(char * key, long value) {
 
 }
 
-bool send_P_repeat(const char * command, long payload, unsigned char tries = 3) {
+bool send_P_repeat(const char * command, long payload, unsigned char tries = COMMS_DEFAULT_TRIES) {
     link.clear();
     while (tries--) {
+        delay(50);
         link.send_P(command, payload);
-        delay(10);
     }
 }
 

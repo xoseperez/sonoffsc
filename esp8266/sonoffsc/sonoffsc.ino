@@ -221,7 +221,7 @@ void welcome() {
 void setup() {
 
     // Wait for the ATMEGA to be ready
-    delay(1000);
+    delay(2000);
 
     // Init EEPROM, Serial and SPIFFS
     hardwareSetup();
