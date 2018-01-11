@@ -2,37 +2,46 @@
 
 OTA MODULE
 
-Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
+Copyright (C) 2016-2018 by Xose Pérez <xose dot perez at gmail dot com>
 
 */
 
 #include "ArduinoOTA.h"
-#include <ESP8266mDNS.h>
 
 // -----------------------------------------------------------------------------
 // OTA
 // -----------------------------------------------------------------------------
 
-void otaConfigure() {
+void _otaConfigure() {
     ArduinoOTA.setPort(OTA_PORT);
     ArduinoOTA.setHostname(getSetting("hostname").c_str());
-    ArduinoOTA.setPassword(getSetting("adminPass", ADMIN_PASS).c_str());
+    #if USE_PASSWORD
+        ArduinoOTA.setPassword(getSetting("adminPass", ADMIN_PASS).c_str());
+    #endif
 }
+
+// -----------------------------------------------------------------------------
 
 void otaSetup() {
 
-    otaConfigure();
+    _otaConfigure();
+    #if WEB_SUPPORT
+        wsOnAfterParseRegister(_otaConfigure);
+    #endif
 
     ArduinoOTA.onStart([]() {
         DEBUG_MSG_P(PSTR("[OTA] Start\n"));
-        wsSend("{\"message\": \"OTA update started\"}");
+        #if WEB_SUPPORT
+            wsSend_P(PSTR("{\"message\": 2}"));
+        #endif
     });
 
     ArduinoOTA.onEnd([]() {
-        customReset(CUSTOM_RESET_OTA);
         DEBUG_MSG_P(PSTR("\n[OTA] End\n"));
-        wsSend("{\"action\": \"reload\"}");
-        delay(100);
+        #if WEB_SUPPORT
+            wsSend_P(PSTR("{\"action\": \"reload\"}"));
+        #endif
+        deferredReset(100, CUSTOM_RESET_OTA);
     });
 
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
@@ -40,7 +49,7 @@ void otaSetup() {
     });
 
     ArduinoOTA.onError([](ota_error_t error) {
-        #if DEBUG_PORT
+        #if DEBUG_SUPPORT
             DEBUG_MSG_P(PSTR("\n[OTA] Error #%u: "), error);
             if (error == OTA_AUTH_ERROR) DEBUG_MSG_P(PSTR("Auth Failed\n"));
             else if (error == OTA_BEGIN_ERROR) DEBUG_MSG_P(PSTR("Begin Failed\n"));
@@ -51,11 +60,6 @@ void otaSetup() {
     });
 
     ArduinoOTA.begin();
-
-    // Public ESPurna related txt for OTA discovery
-    MDNS.addServiceTxt("arduino", "tcp", "app_name", APP_NAME);
-    MDNS.addServiceTxt("arduino", "tcp", "app_version", APP_VERSION);
-    MDNS.addServiceTxt("arduino", "tcp", "target_board", DEVICE_NAME);
 
 }
 

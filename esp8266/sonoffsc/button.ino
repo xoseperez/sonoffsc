@@ -2,7 +2,7 @@
 
 BUTTON MODULE
 
-Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
+Copyright (C) 2016-2018 by Xose Pérez <xose dot perez at gmail dot com>
 
 */
 
@@ -28,14 +28,14 @@ void buttonLoop() {
             if (_button.getEventCount() == 1) {
 
                 if(_button.getEventLength() >= BUTTON_LNGLNGCLICK_DELAY) {
-                    customReset(CUSTOM_RESET_HARDWARE);
+                    deferredReset(100, CUSTOM_RESET_HARDWARE);
                     ESP.restart();
                 }
 
                 if(_button.getEventLength() >= BUTTON_LNGCLICK_DELAY) {
                     DEBUG_MSG_P(PSTR("\n\nFACTORY RESET\n\n"));
                     settingsFactoryReset();
-                    customReset(CUSTOM_RESET_FACTORY);
+                    deferredReset(100, CUSTOM_RESET_FACTORY);
                     ESP.restart();
                 }
 

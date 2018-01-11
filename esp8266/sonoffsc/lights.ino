@@ -137,17 +137,17 @@ void _lightsMqttCallback(unsigned int type, const char * topic, const char * pay
 
 void sendEffect(long effect) {
     DEBUG_MSG_P(PSTR("[LIGHTS] Effect to %d\n"), effect);
-    send_P_repeat(at_effect, effect);
+    commsSend(at_effect, effect);
 }
 
 void sendColor(unsigned long color) {
     DEBUG_MSG_P(PSTR("[LIGHTS] Color to %lu\n"), color);
-    send_P_repeat(at_color, color);
+    commsSend(at_color, color);
 }
 
 void sendBrightness(unsigned char brightness) {
     DEBUG_MSG_P(PSTR("[LIGHTS] Brightness to %d\n"), brightness);
-    send_P_repeat(at_bright, brightness);
+    commsSend(at_bright, brightness);
 }
 
 void sendColor(const char * rgb) {
@@ -158,7 +158,7 @@ void sendColor(const char * rgb) {
 
 void sendSpeed(unsigned char speed) {
     DEBUG_MSG_P(PSTR("[LIGHTS] Speed to %d\n"), speed);
-    send_P_repeat(at_speed, speed);
+    commsSend(at_speed, speed);
 }
 
 void sendNotification(bool state, unsigned long time) {
@@ -182,7 +182,7 @@ void sendNotification(bool state) {
 
 void lightsSetup() {
     mqttRegister(_lightsMqttCallback);
-    send_P_repeat(at_timeout, 0);
+    commsSend(at_timeout, 0);
 }
 
 void lightsLoop() {

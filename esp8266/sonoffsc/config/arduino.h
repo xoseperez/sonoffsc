@@ -13,6 +13,7 @@
 //#define DEBUG_UDP_SUPPORT      1
 //#define DOMOTICZ_SUPPORT       0
 //#define MDNS_SUPPORT           0
+//#define MQTT_SUPPORT           0
 //#define NOFUSS_SUPPORT         1
 //#define NTP_SUPPORT            0
 //#define SPIFFS_SUPPORT         1

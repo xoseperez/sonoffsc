@@ -2,7 +2,7 @@
 
 ALEXA MODULE
 
-Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
+Copyright (C) 2016-2018 by Xose Pérez <xose dot perez at gmail dot com>
 
 */
 
@@ -16,27 +16,53 @@ fauxmoESP alexa;
 // ALEXA
 // -----------------------------------------------------------------------------
 
-void alexaConfigure() {
+void _alexaWebSocketOnSend(JsonObject& root) {
+    root["alexaVisible"] = 1;
+    root["alexaEnabled"] = getSetting("alexaEnabled", ALEXA_ENABLED).toInt() == 1;
+}
+
+void _alexaConfigure() {
     alexa.enable(getSetting("alexaEnabled", ALEXA_ENABLED).toInt() == 1);
 }
 
+// -----------------------------------------------------------------------------
+
 void alexaSetup() {
+
+    // Load & cache settings
+    _alexaConfigure();
+
+    #if WEB_SUPPORT
+
+        // Websockets
+        wsOnSendRegister(_alexaWebSocketOnSend);
+        wsOnAfterParseRegister(_alexaConfigure);
+
+    #endif
 
     alexa.addDevice("clap");
 
-    alexa.onMessage([](unsigned char device_id, const char * name, bool state) {
+    alexa.onSetState([](unsigned char device_id, const char * name, bool state) {
 
-        DEBUG_MSG("[FAUXMO] %s state: %s\n", name, state ? "ON" : "OFF");
+        DEBUG_MSG("[ALEXA] %s state: %s\n", name, state ? "ON" : "OFF");
 
         if (strcmp(name, "clap") == 0) {
             setSetting("clapEnabled", state);
-            if (state) {
-                wsSend((char *) "{\"clapEnabled\": true}");
-            } else {
-                wsSend((char *) "{\"clapEnabled\": false}");
-            }
             commsConfigure();
+            #if WEB_SUPPORT
+                if (state) {
+                    wsSend((char *) "{\"clapEnabled\": true}");
+                } else {
+                    wsSend((char *) "{\"clapEnabled\": false}");
+                }
+            #endif
         }
+
+    alexa.onGetState([](unsigned char device_id, const char * name) {
+		if (strcmp(name, "clap") == 0) {
+			return getSetting("clapEnabled", 0).toInt();
+		}
+    });
 
     });
 

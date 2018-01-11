@@ -1,7 +1,7 @@
 /*
 
 Sonoff SC
-Copyright (C) 2017 by Xose Pérez <xose dot perez at gmail dot com>
+Copyright (C) 2017-2018 by Xose Pérez <xose dot perez at gmail dot com>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,45 +18,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
-#include <Arduino.h>
-#include <EEPROM.h>
 #include "config/all.h"
+#include <EEPROM.h>
 
 // -----------------------------------------------------------------------------
 // METHODS
 // -----------------------------------------------------------------------------
 
-bool ledStatus(bool status) {
-    digitalWrite(LED_PIN, status ? LOW : HIGH);
-    return status;
-}
-
-bool ledStatus() {
-    return (digitalRead(LED_PIN) == LOW);
-}
-
-bool ledToggle() {
-    return ledStatus(!ledStatus());
-}
-
-void ledBlink(unsigned long delayOff, unsigned long delayOn) {
-    static unsigned long next = millis();
-    if (next < millis()) {
-        next += (ledToggle() ? delayOn : delayOff);
-    }
-}
-
-void showStatus() {
-    if (wifiConnected()) {
-        if (WiFi.getMode() == WIFI_AP) {
-            ledBlink(2000, 2000);
-        } else {
-            ledBlink(5000, 500);
-        }
-    } else {
-        ledBlink(500, 500);
-    }
-}
+unsigned long _loopDelay = 0;
 
 void hardwareSetup() {
 
@@ -75,29 +44,16 @@ void hardwareSetup() {
         SPIFFS.begin();
     #endif
 
-    pinMode(LED_PIN, OUTPUT);
 
 }
 
 void hardwareLoop() {
 
-    showStatus();
-
-    // System check
-    static bool checked = false;
-    if (!checked && (millis() > CRASH_SAFE_TIME)) {
-        // Check system as stable
-        systemCheck(true);
-        checked = true;
-    }
-
     // Heartbeat
-    static unsigned long last_heartbeat = 0;
-    if (mqttConnected()) {
-        if ((millis() - last_heartbeat > HEARTBEAT_INTERVAL) || (last_heartbeat == 0)) {
-            last_heartbeat = millis();
-            heartbeat();
-        }
+    static unsigned long last = 0;
+    if ((last == 0) || (millis() - last > HEARTBEAT_INTERVAL)) {
+        last = millis();
+        heartbeat();
     }
 
 }
@@ -119,7 +75,8 @@ void welcome() {
     DEBUG_MSG_P(PSTR("[INIT] CPU chip ID: 0x%06X\n"), ESP.getChipId());
     DEBUG_MSG_P(PSTR("[INIT] CPU frequency: %d MHz\n"), ESP.getCpuFreqMHz());
     DEBUG_MSG_P(PSTR("[INIT] SDK version: %s\n"), ESP.getSdkVersion());
-    DEBUG_MSG_P(PSTR("[INIT] Core version: %s\n"), ESP.getCoreVersion().c_str());
+    DEBUG_MSG_P(PSTR("[INIT] Core version: %s\n"), getCoreVersion().c_str());
+    DEBUG_MSG_P(PSTR("[INIT] Core revision: %s\n"), getCoreRevision().c_str());
     DEBUG_MSG_P(PSTR("\n"));
 
     // -------------------------------------------------------------------------
@@ -165,8 +122,7 @@ void welcome() {
 
     // -------------------------------------------------------------------------
 
-    DEBUG_MSG_P(PSTR("[INIT] MANUFACTURER: %s\n"), MANUFACTURER);
-    DEBUG_MSG_P(PSTR("[INIT] DEVICE: %s\n"), DEVICE_NAME);
+    DEBUG_MSG_P(PSTR("[INIT] BOARD: %s\n"), getBoardName().c_str());
     DEBUG_MSG_P(PSTR("[INIT] SUPPORT:"));
 
     #if ALEXA_SUPPORT
@@ -174,6 +130,9 @@ void welcome() {
     #endif
     #if DEBUG_SERIAL_SUPPORT
         DEBUG_MSG_P(PSTR(" DEBUG_SERIAL"));
+    #endif
+    #if DEBUG_TELNET_SUPPORT
+        DEBUG_MSG_P(PSTR(" DEBUG_TELNET"));
     #endif
     #if DEBUG_UDP_SUPPORT
         DEBUG_MSG_P(PSTR(" DEBUG_UDP"));
@@ -196,24 +155,29 @@ void welcome() {
     #if TERMINAL_SUPPORT
         DEBUG_MSG_P(PSTR(" TERMINAL"));
     #endif
+    #if WEB_SUPPORT
+        DEBUG_MSG_P(PSTR(" WEB"));
+    #endif
 
     DEBUG_MSG_P(PSTR("\n\n"));
 
     // -------------------------------------------------------------------------
 
-    unsigned char custom_reset = customReset();
-    if (custom_reset > 0) {
+    unsigned char reason = resetReason();
+    if (reason > 0) {
         char buffer[32];
-        strcpy_P(buffer, custom_reset_string[custom_reset-1]);
+        strcpy_P(buffer, custom_reset_string[reason-1]);
         DEBUG_MSG_P(PSTR("[INIT] Last reset reason: %s\n"), buffer);
     } else {
         DEBUG_MSG_P(PSTR("[INIT] Last reset reason: %s\n"), (char *) ESP.getResetReason().c_str());
     }
 
-    DEBUG_MSG_P(PSTR("[INIT] Free heap: %u bytes\n"), ESP.getFreeHeap());
+    DEBUG_MSG_P(PSTR("[INIT] Free heap: %u bytes\n"), getFreeHeap());
     #if ADC_VCC_ENABLED
         DEBUG_MSG_P(PSTR("[INIT] Power: %d mV\n"), ESP.getVcc());
     #endif
+
+    DEBUG_MSG_P(PSTR("[INIT] Power saving delay value: %lu ms\n"), _loopDelay);
     DEBUG_MSG_P(PSTR("\n"));
 
 }
@@ -227,17 +191,24 @@ void setup() {
     hardwareSetup();
 
     // Question system stability
-    systemCheck(false);
-
-    // Show welcome message and system configuration
-    welcome();
+    #if SYSTEM_CHECK_ENABLED
+        systemCheck(false);
+    #endif
 
     // Init persistance and terminal features
     settingsSetup();
     if (getSetting("hostname").length() == 0) {
         setSetting("hostname", getIdentifier());
     }
+    setBoardName();
 
+    // Cache loop delay value to speed things (recommended max 250ms)
+    _loopDelay = atol(getSetting("loopDelay", LOOP_DELAY_TIME).c_str());
+
+    // Show welcome message and system configuration
+    welcome();
+
+    // Basic modules, will always run
     wifiSetup();
     otaSetup();
     #if TELNET_SUPPORT
@@ -245,14 +216,29 @@ void setup() {
     #endif
 
     // Do not run the next services if system is flagged stable
-    if (!systemCheck()) return;
+    #if SYSTEM_CHECK_ENABLED
+        if (!systemCheck()) return;
+    #endif
+
+    // Init webserver required before any module that uses API
+    #if WEB_SUPPORT
+        webSetup();
+        wsSetup();
+        apiSetup();
+    #endif
 
     buttonSetup();
-    mqttSetup();
-    webSetup();
+    ledSetup();
+    #if MQTT_SUPPORT
+        mqttSetup();
+    #endif
+
     commsSetup();
     lightsSetup();
 
+    #if MDNS_SUPPORT
+        mdnsSetup();
+    #endif
     #if NTP_SUPPORT
         ntpSetup();
     #endif
@@ -279,11 +265,17 @@ void loop() {
     wifiLoop();
     otaLoop();
 
-    // Do not run the next services if system is flagged stable
-    if (!systemCheck()) return;
+    #if SYSTEM_CHECK_ENABLED
+        systemCheckLoop();
+        // Do not run the next services if system is flagged stable
+        if (!systemCheck()) return;
+    #endif
 
     buttonLoop();
-    mqttLoop();
+    ledLoop();
+    #if MQTT_SUPPORT
+        mqttLoop();
+    #endif
     commsLoop();
 
     #if NTP_SUPPORT
@@ -295,5 +287,8 @@ void loop() {
     #if NOFUSS_SUPPORT
         nofussLoop();
     #endif
+
+    // Power saving delay
+    delay(_loopDelay);
 
 }

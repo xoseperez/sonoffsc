@@ -55,11 +55,11 @@ float getMovement() { return movement; }
 // COMMUNICATIONS
 // -----------------------------------------------------------------------------
 
-bool commsGet(char * key) {
+bool _commsGet(char * key) {
     return false;
 }
 
-bool commsSet(char * key, long value) {
+bool _commsSet(char * key, long value) {
 
     char buffer[50];
 
@@ -137,7 +137,26 @@ bool commsSet(char * key, long value) {
 
 }
 
-bool send_P_repeat(const char * command, long payload, unsigned char tries = COMMS_DEFAULT_TRIES) {
+// -----------------------------------------------------------------------------
+
+#if WEB_SUPPORT
+
+void _commsWebSocketOnSend(JsonObject& root) {
+    root["sensorTemp"] = getTemperature();
+    root["sensorHum"] = getHumidity();
+    root["sensorLight"] = getLight();
+    root["sensorNoise"] = getNoise();
+    root["sensorDust"] = getDust();
+    root["sensorMove"] = getMovement();
+    root["sensorEvery"] = getSetting("sensorEvery", SENSOR_EVERY).toInt();
+    root["clapEnabled"] = getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1;
+}
+
+#endif // WEB_SUPPORT
+
+// -----------------------------------------------------------------------------
+
+bool commsSend(const char * command, long payload, unsigned char tries = COMMS_DEFAULT_TRIES) {
     link.clear();
     while (tries--) {
         delay(50);
@@ -148,21 +167,30 @@ bool send_P_repeat(const char * command, long payload, unsigned char tries = COM
 void commsConfigure() {
     link.clear();
     delay(200);
-    send_P_repeat(at_every, getSetting("sensorEvery", SENSOR_EVERY).toInt());
-    send_P_repeat(at_clap, getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1 ? 1 : 0);
-    send_P_repeat(at_push,1);
+    commsSend(at_every, getSetting("sensorEvery", SENSOR_EVERY).toInt());
+    commsSend(at_clap, getSetting("clapEnabled", SENSOR_CLAP_ENABLED).toInt() == 1 ? 1 : 0);
+    commsSend(at_push,1);
 }
 
 void commsSetup() {
 
-    link.onGet(commsGet);
-    link.onSet(commsSet);
+    link.onGet(_commsGet);
+    link.onSet(_commsSet);
     link.clear();
     delay(200);
 
     // Set FAN mode depending on delay
-    send_P_repeat(at_fanoff, FAN_DELAY);
-    send_P_repeat(at_fan, FAN_DELAY == 0);
+    commsSend(at_fanoff, FAN_DELAY);
+    commsSend(at_fan, FAN_DELAY == 0);
+
+    wifiRegister([](justwifi_messages_t code, char * parameter) {
+        if (code == MESSAGE_CONNECTED) commsConfigure();
+    });
+
+    #if WEB_SUPPORT
+        wsOnSendRegister(_commsWebSocketOnSend);
+        wsOnAfterParseRegister(commsConfigure);
+    #endif
 
 }
 

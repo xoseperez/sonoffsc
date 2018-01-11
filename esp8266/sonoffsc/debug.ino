@@ -2,7 +2,7 @@
 
 DEBUG MODULE
 
-Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
+Copyright (C) 2016-2018 by Xose Pérez <xose dot perez at gmail dot com>
 
 */
 
@@ -11,6 +11,10 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 #include <stdio.h>
 #include <stdarg.h>
 
+extern "C" {
+    #include "user_interface.h"
+}
+
 #if DEBUG_UDP_SUPPORT
 #include <WiFiUdp.h>
 WiFiUDP udpDebug;
@@ -18,72 +22,74 @@ WiFiUDP udpDebug;
 
 void debugSend(const char * format, ...) {
 
-    char buffer[DEBUG_MESSAGE_MAX_LENGTH+1];
-
     va_list args;
     va_start(args, format);
-    int len = ets_vsnprintf(buffer, DEBUG_MESSAGE_MAX_LENGTH, format, args);
+    char test[1];
+    int len = ets_vsnprintf(test, 1, format, args) + 1;
+    char * buffer = new char[len];
+    ets_vsnprintf(buffer, len, format, args);
     va_end(args);
 
     #if DEBUG_SERIAL_SUPPORT
         DEBUG_PORT.printf(buffer);
-        if (len > DEBUG_MESSAGE_MAX_LENGTH) {
-            DEBUG_PORT.printf(" (...)\n");
-        }
     #endif
 
     #if DEBUG_UDP_SUPPORT
+        #if SYSTEM_CHECK_ENABLED
         if (systemCheck()) {
+        #endif
             udpDebug.beginPacket(DEBUG_UDP_IP, DEBUG_UDP_PORT);
             udpDebug.write(buffer);
-            if (len > DEBUG_MESSAGE_MAX_LENGTH) {
-                udpDebug.write(" (...)\n");
-            }
             udpDebug.endPacket();
             delay(1);
+        #if SYSTEM_CHECK_ENABLED
         }
+        #endif
     #endif
 
     #if DEBUG_TELNET_SUPPORT
         _telnetWrite(buffer, strlen(buffer));
     #endif
+
+    free(buffer);
 
 }
 
-void debugSend_P(PGM_P format, ...) {
+void debugSend_P(PGM_P format_P, ...) {
 
-    char f[DEBUG_MESSAGE_MAX_LENGTH+1];
-    memcpy_P(f, format, DEBUG_MESSAGE_MAX_LENGTH);
-
-    char buffer[DEBUG_MESSAGE_MAX_LENGTH+1];
+    char format[strlen_P(format_P)+1];
+    memcpy_P(format, format_P, sizeof(format));
 
     va_list args;
-    va_start(args, format);
-    int len = ets_vsnprintf(buffer, DEBUG_MESSAGE_MAX_LENGTH, f, args);
+    va_start(args, format_P);
+    char test[1];
+    int len = ets_vsnprintf(test, 1, format, args) + 1;
+    char * buffer = new char[len];
+    ets_vsnprintf(buffer, len, format, args);
     va_end(args);
 
     #if DEBUG_SERIAL_SUPPORT
         DEBUG_PORT.printf(buffer);
-        if (len > DEBUG_MESSAGE_MAX_LENGTH) {
-            DEBUG_PORT.printf(" (...)\n");
-        }
     #endif
 
     #if DEBUG_UDP_SUPPORT
+        #if SYSTEM_CHECK_ENABLED
         if (systemCheck()) {
+        #endif
             udpDebug.beginPacket(DEBUG_UDP_IP, DEBUG_UDP_PORT);
             udpDebug.write(buffer);
-            if (len > DEBUG_MESSAGE_MAX_LENGTH) {
-                udpDebug.write(" (...)\n");
-            }
             udpDebug.endPacket();
             delay(1);
+        #if SYSTEM_CHECK_ENABLED
         }
+        #endif
     #endif
 
     #if DEBUG_TELNET_SUPPORT
         _telnetWrite(buffer, strlen(buffer));
     #endif
+
+    free(buffer);
 
 }
 
