@@ -33,7 +33,7 @@
 // Serial debug log
 
 #ifndef DEBUG_SERIAL_SUPPORT
-#define DEBUG_SERIAL_SUPPORT    1               // Do not enable serial debug log
+#define DEBUG_SERIAL_SUPPORT    0               // Do not enable serial debug log
 #endif
 
 #ifndef DEBUG_PORT
@@ -88,7 +88,7 @@
 //------------------------------------------------------------------------------
 
 #ifndef TERMINAL_SUPPORT
-#define TERMINAL_SUPPORT         0               // Terminal support conflicts comms
+#define TERMINAL_SUPPORT        0               // Terminal support conflicts comms
 #endif
 
 //------------------------------------------------------------------------------
