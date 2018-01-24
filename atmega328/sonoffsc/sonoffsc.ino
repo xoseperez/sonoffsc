@@ -1,7 +1,7 @@
 /*
 
 Sonoff SC
-Copyright (C) 2017 by Xose Pérez <xose dot perez at gmail dot com>
+Copyright (C) 2017-2018 by Xose Pérez <xose dot perez at gmail dot com>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

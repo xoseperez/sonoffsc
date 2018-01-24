@@ -7,6 +7,7 @@ cache:
         - "~/.platformio"
 install:
     - pip install -U platformio
+    - cd esp8266 ; npm install --only=dev ; cd ..
 script:
     - cd atmega328 ; platformio run ; cd ..
     - cd esp8266 ; platformio run ; cd ..
