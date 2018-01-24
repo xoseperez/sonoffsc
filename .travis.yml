@@ -8,5 +8,5 @@ cache:
 install:
     - pip install -U platformio
 script:
-    - cd atmega328 ; platformio run
-    - cd esp8266 ; platformio run
+    - cd atmega328 ; platformio run ; cd ..
+    - cd esp8266 ; platformio run ; cd ..
