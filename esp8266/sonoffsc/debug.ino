@@ -10,6 +10,11 @@ Copyright (C) 2016-2018 by Xose Pérez <xose dot perez at gmail dot com>
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <EEPROM.h>
+
+extern "C" {
+    #include "user_interface.h"
+}
 
 extern "C" {
     #include "user_interface.h"
