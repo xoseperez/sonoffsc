@@ -9,4 +9,4 @@ install:
     - pip install -U platformio
     - cd esp8266 ; npm install --only=dev ; cd ..
 script:
-    - build.sh
+    - ./build.sh
