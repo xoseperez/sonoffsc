@@ -10,5 +10,3 @@ install:
     - cd esp8266 ; npm install --only=dev ; cd ..
 script:
     - cd atmega328 && platformio run && cd ../esp8266 && node node_modules/gulp/bin/gulp.js && platformio run
-after_success:
-    - bash <(curl -s https://codecov.io/bash)

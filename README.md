@@ -4,7 +4,6 @@ Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
 
 [![version](https://badge.fury.io/gh/xoseperez%2Fsonoffsc.svg)](CHANGELOG.md)
 [![travis](https://travis-ci.org/xoseperez/sonoffsc.svg?branch=master)](https://travis-ci.org/xoseperez/sonoffsc)
-[![codecov](https://codecov.io/gh/xoseperez/sonoffsc/branch/master/graph/badge.svg)](https://codecov.io/gh/xoseperez/sonoffsc)
 [![license](https://img.shields.io/github/license/xoseperez/sonoffsc.svg)](LICENSE)
 [![donate](https://img.shields.io/badge/donate-PayPal-blue.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=xose%2eperez%40gmail%2ecom&lc=US&no_note=0&currency_code=EUR&bn=PP%2dDonationsBF%3abtn_donate_LG%2egif%3aNonHostedGuest)
 [![twitter](https://img.shields.io/twitter/follow/xoseperez.svg?style=social)](https://twitter.com/intent/follow?screen_name=xoseperez)
