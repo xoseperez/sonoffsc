@@ -2,10 +2,11 @@
 
 Custom firmware for the Sonoff SC (both for the ATMega328P and the ESP8266).
 
-[![Version](https://badge.fury.io/gh/xoseperez%2Fsonoffsc.svg)](CHANGELOG.md)
-[![License GPL-3.0](https://img.shields.io/badge/license-GPL%203.0-orange.svg)](LICENSE)
-[![Build Status](https://travis-ci.org/xoseperez/sonoffsc.svg?branch=master)](https://travis-ci.org/xoseperez/sonoffsc)
-[![Donate](https://img.shields.io/badge/donate-PayPal-blue.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=xose%2eperez%40gmail%2ecom&lc=US&no_note=0&currency_code=EUR&bn=PP%2dDonationsBF%3abtn_donate_LG%2egif%3aNonHostedGuest)
+[![version](https://badge.fury.io/gh/xoseperez%2Fsonoffsc.svg)](CHANGELOG.md)
+[![travis](https://travis-ci.org/xoseperez/sonoffsc.svg?branch=master)](https://travis-ci.org/xoseperez/sonoffsc)
+[![license](https://img.shields.io/github/license/xoseperez/sonoffsc.svg)](LICENSE)
+[![donate](https://img.shields.io/badge/donate-PayPal-blue.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=xose%2eperez%40gmail%2ecom&lc=US&no_note=0&currency_code=EUR&bn=PP%2dDonationsBF%3abtn_donate_LG%2egif%3aNonHostedGuest)
+[![twitter](https://img.shields.io/twitter/follow/xoseperez.svg?style=social)](https://twitter.com/intent/follow?screen_name=xoseperez)
 
 ## Features
 
