@@ -1,8 +1,3 @@
-#include "version.h"
-#include "arduino.h"
-#include "general.h"
-#include "prototypes.h"
-
 /*
     If you want to modify the stock configuration but you don't want to touch
     the repo files you can either define USE_CUSTOM_H or remove the
@@ -17,3 +12,8 @@
 #ifdef USE_CUSTOM_H
 #include "custom.h"
 #endif
+
+#include "version.h"
+#include "arduino.h"
+#include "general.h"
+#include "prototypes.h"
