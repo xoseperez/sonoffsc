@@ -72,7 +72,9 @@ bool _commsSet(char * key, long value) {
         temperature = (float) value / 10;
         if (temperature < SENSOR_TEMPERATURE_MIN || SENSOR_TEMPERATURE_MAX < temperature) return false;
         mqttSend(getSetting("mqttTopicTemp", MQTT_TOPIC_TEMPERATURE).c_str(), String(temperature).c_str());
-        domoticzSend("dczIdxTemp", temperature);
+        #if DOMOTICZ_SUPPORT
+            domoticzSend("dczIdxTemp", temperature);
+        #endif
         sprintf(buffer, "{\"sensorTemp\": %s}", String(temperature).c_str());
         wsSend(buffer);
         return true;
@@ -82,7 +84,9 @@ bool _commsSet(char * key, long value) {
         humidity = value;
         if (humidity < SENSOR_HUMIDITY_MIN || SENSOR_HUMIDITY_MAX < humidity) return false;
         mqttSend(getSetting("mqttTopicHum", MQTT_TOPIC_HUMIDITY).c_str(), String(humidity).c_str());
-        domoticzSend("dczIdxHum", humidity);
+        #if DOMOTICZ_SUPPORT
+            domoticzSend("dczIdxHum", humidity);
+        #endif
         sprintf(buffer, "{\"sensorHum\": %d}", humidity);
         wsSend(buffer);
         return true;
@@ -92,7 +96,9 @@ bool _commsSet(char * key, long value) {
         light = value;
         if (light < 0 || 100 < light) return false;
         mqttSend(getSetting("mqttTopicLight", MQTT_TOPIC_LIGHT).c_str(), String(light).c_str());
-        domoticzSend("dczIdxLight", light);
+        #if DOMOTICZ_SUPPORT
+            domoticzSend("dczIdxLight", light);
+        #endif
         sprintf(buffer, "{\"sensorLight\": %d}", light);
         wsSend(buffer);
         return true;
@@ -102,7 +108,9 @@ bool _commsSet(char * key, long value) {
         dust = (float) value / 100;
         if (dust < SENSOR_DUST_MIN || SENSOR_DUST_MAX < dust) return false;
         mqttSend(getSetting("mqttTopicDust", MQTT_TOPIC_DUST).c_str(), String(dust).c_str());
-        domoticzSend("dczIdxDust", dust);
+        #if DOMOTICZ_SUPPORT
+            domoticzSend("dczIdxDust", dust);
+        #endif
         sprintf(buffer, "{\"sensorDust\": %s}", String(dust).c_str());
         wsSend(buffer);
         return true;
@@ -112,7 +120,9 @@ bool _commsSet(char * key, long value) {
         noise = value;
         if (noise < 0 || 100 < noise) return false;
         mqttSend(getSetting("mqttTopicNoise", MQTT_TOPIC_NOISE).c_str(), String(noise).c_str());
-        domoticzSend("dczIdxNoise", noise);
+        #if DOMOTICZ_SUPPORT
+            domoticzSend("dczIdxNoise", noise);
+        #endif
         sprintf(buffer, "{\"sensorNoise\": %d}", noise);
         wsSend(buffer);
         return true;
@@ -121,7 +131,9 @@ bool _commsSet(char * key, long value) {
     if (strcmp_P(key, at_move) == 0) {
         movement = value;
         mqttSend(getSetting("mqttTopicMovement", MQTT_TOPIC_MOVE).c_str(), movement ? "1" : "0");
-        domoticzSend("dczIdxMovement", movement);
+        #if DOMOTICZ_SUPPORT
+            domoticzSend("dczIdxMovement", movement);
+        #endif
         sprintf(buffer, "{\"sensorMove\": %d}", movement ? 1 : 0);
         wsSend(buffer);
         #if LOCAL_NOTIFICATION
