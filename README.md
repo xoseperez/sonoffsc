@@ -46,6 +46,10 @@ Know more here:
 * [http://tinkerman.cat/sonoff-sc-with-mqtt-and-domoticz-support](http://tinkerman.cat/sonoff-sc-with-mqtt-and-domoticz-support)
 * [http://tinkerman.cat/itead-studio-sonoff-sc-revisited/](http://tinkerman.cat/itead-studio-sonoff-sc-revisited/)
 
+### Compiling Problems under Windows10
+
+Regarding compiling issues under Windows10, take a look at [#42](https://github.com/xoseperez/sonoffsc/issues/42)
+
 ## License
 
 Copyright (C) 2017-2018 by Xose Pérez (@xoseperez)
