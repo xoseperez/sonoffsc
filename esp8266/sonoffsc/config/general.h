@@ -4,7 +4,9 @@
 
 #define DEVICE_NAME             APP_NAME
 #define MANUFACTURER            "ITEAD STUDIO"
+#ifndef ADMIN_PASS
 #define ADMIN_PASS              "fibonacci" // Default password (WEB, OTA, WIFI)
+#endif
 #define USE_PASSWORD            1           // Insecurity caution! Disabling this will disable password querying completely.
 #define LOOP_DELAY_TIME         10          // Delay for this millis in the main loop [0-250]
 
@@ -218,7 +220,9 @@ PROGMEM const char* const custom_reset_string[] = {
 #define WEB_MODE_PASSWORD       1
 
 #define WEB_USERNAME            "admin"     // HTTP username
+#ifndef WEB_FORCE_PASS_CHANGE
 #define WEB_FORCE_PASS_CHANGE   1           // Force the user to change the password if default one
+#endif
 #define WEB_PORT                80          // HTTP port
 
 // -----------------------------------------------------------------------------
@@ -307,17 +311,32 @@ PROGMEM const char* const custom_reset_string[] = {
 #define MQTT_SSL_ENABLED        0           // By default MQTT over SSL will not be enabled
 #define MQTT_SSL_FINGERPRINT    ""          // SSL fingerprint of the server
 
+#ifndef MQTT_ENABLED
 #define MQTT_ENABLED            0           // Do not enable MQTT connection by default
+#endif
+#ifndef MQTT_AUTOCONNECT
 #define MQTT_AUTOCONNECT        1           // If enabled and MDNS_SUPPORT=1 will perform an autodiscover and
                                             // autoconnect to the first MQTT broker found if none defined
+#endif
+
+#ifndef MQTT_SERVER
 #define MQTT_SERVER             ""          // Default MQTT broker address
+#endif
+#ifndef MQTT_USER
 #define MQTT_USER               ""          // Default MQTT broker usename
+#endif
+#ifndef MQTT_PASS
 #define MQTT_PASS               ""          // Default MQTT broker password
+#endif
 #define MQTT_PORT               1883        // MQTT broker port
+#ifndef MQTT_TOPIC
 #define MQTT_TOPIC              "/test/sonoffsc"    // Default MQTT base topic
+#endif
 #define MQTT_RETAIN             true        // MQTT retain flag
 #define MQTT_QOS                0           // MQTT QoS value for all messages
+#ifndef MQTT_KEEPALIVE
 #define MQTT_KEEPALIVE          30          // MQTT keepalive value
+#endif
 
 #define MQTT_RECONNECT_DELAY_MIN    5000    // Try to reconnect in 5 seconds upon disconnection
 #define MQTT_RECONNECT_DELAY_STEP   5000    // Increase the reconnect delay in 5 seconds after each failed attempt
@@ -402,8 +421,12 @@ PROGMEM const char* const custom_reset_string[] = {
 #define NTP_SUPPORT             1               // Build with NTP support by default
 #endif
 
+#ifndef NTP_SERVER
 #define NTP_SERVER              "pool.ntp.org"  // Default NTP server
+#endif
+#ifndef NTP_TIME_OFFSET
 #define NTP_TIME_OFFSET         1               // Default timezone offset (GMT+1)
+#endif
 #define NTP_DAY_LIGHT           true            // Enable daylight time saving by default
 #define NTP_UPDATE_INTERVAL     1800            // NTP check every 30 minutes
 

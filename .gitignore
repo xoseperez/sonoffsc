@@ -22,3 +22,4 @@ node_modules
 utils
 *.vcxproj
 *.xml
+custom.h
